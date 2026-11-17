@@ -23,6 +23,25 @@ Assert ($settings.InputDirectory -eq 'Entrada' -and $settings.OutputDirectory -e
 Assert ($settings.ToolsDirectory -eq 'tools/ffmpeg/bin') 'Caminho do FFmpeg não é portátil.'
 $settings.PollSeconds=0.1; $settings.StableSeconds=0.3
 [IO.File]::WriteAllText($configPath,($settings | ConvertTo-Json))
+function Run-Portable([string]$Arguments='--once', [int]$TimeoutMs=60000) {
+    $start=New-Object Diagnostics.ProcessStartInfo
+    $start.FileName=Join-Path $app 'JiraVideoCompressor.exe'
+    # Sem --config e fora da pasta do app: deve usar o arquivo ao lado do executável.
+    $start.Arguments=$Arguments
+    $start.WorkingDirectory=$projectRoot
+    $start.UseShellExecute=$false; $start.CreateNoWindow=$true
+    $start.RedirectStandardOutput=$true; $start.RedirectStandardError=$true
+    $start.EnvironmentVariables['DOTNET_ROOT']=Join-Path $testRoot 'runtime-inexistente'
+    $start.EnvironmentVariables['DOTNET_ROOT_X64']=Join-Path $testRoot 'runtime-inexistente'
+    $start.EnvironmentVariables['DOTNET_MULTILEVEL_LOOKUP']='0'
+    $process=[Diagnostics.Process]::Start($start)
+    try {
+        $stdout=$process.StandardOutput.ReadToEndAsync(); $stderr=$process.StandardError.ReadToEndAsync()
+        if (!$process.WaitForExit($TimeoutMs)) { $process.Kill(); throw 'Timeout do executável portátil.' }
+        Write-Host ($stdout.Result+$stderr.Result)
+        Assert ($process.ExitCode -eq 0) 'Executável portátil falhou.'
+    } finally { $process.Dispose() }
+}
 if ($manifest.ffmpegDelivery -eq 'download-on-first-run') {
     Assert (![IO.File]::Exists((Join-Path $app 'tools/ffmpeg/bin/ffmpeg.exe'))) 'Pacote público contém FFmpeg incorporado.'
     # Em ambiente sem rede, uma instalação de teste pode ser fornecida explicitamente.
@@ -30,8 +49,7 @@ if ($manifest.ffmpegDelivery -eq 'download-on-first-run') {
         [IO.Directory]::CreateDirectory((Join-Path $app 'tools/ffmpeg/bin')) | Out-Null
         foreach ($tool in @('ffmpeg.exe','ffprobe.exe')) { [IO.File]::Copy((Join-Path $env:COMPRESSOR_TEST_FFMPEG $tool),(Join-Path $app ('tools/ffmpeg/bin/'+$tool))) }
     } else {
-        & (Join-Path $app 'JiraVideoCompressor.exe') --prepare-tools
-        Assert ($LASTEXITCODE -eq 0) 'Preparação automática do FFmpeg falhou.'
+        Run-Portable -Arguments '--prepare-tools' -TimeoutMs 600000
     }
 }
 $inputDirectory=Join-Path $app 'Entrada'
@@ -46,25 +64,7 @@ $file=[IO.File]::OpenWrite($large)
 try { $file.SetLength(10000001) } finally { $file.Dispose() }
 $smallHash=(Get-FileHash $small).Hash
 $largeHash=(Get-FileHash $large).Hash
-function Run-Portable {
-    $start=New-Object Diagnostics.ProcessStartInfo
-    $start.FileName=Join-Path $app 'JiraVideoCompressor.exe'
-    # Sem --config e fora da pasta do app: deve usar o arquivo ao lado do executável.
-    $start.Arguments='--once'
-    $start.WorkingDirectory=$projectRoot
-    $start.UseShellExecute=$false; $start.CreateNoWindow=$true
-    $start.RedirectStandardOutput=$true; $start.RedirectStandardError=$true
-    $start.EnvironmentVariables['DOTNET_ROOT']=Join-Path $testRoot 'runtime-inexistente'
-    $start.EnvironmentVariables['DOTNET_ROOT_X64']=Join-Path $testRoot 'runtime-inexistente'
-    $start.EnvironmentVariables['DOTNET_MULTILEVEL_LOOKUP']='0'
-    $process=[Diagnostics.Process]::Start($start)
-    try {
-        $stdout=$process.StandardOutput.ReadToEndAsync(); $stderr=$process.StandardError.ReadToEndAsync()
-        if (!$process.WaitForExit(60000)) { $process.Kill(); throw 'Timeout do executável portátil.' }
-        Write-Host ($stdout.Result+$stderr.Result)
-        Assert ($process.ExitCode -eq 0) 'Executável portátil falhou.'
-    } finally { $process.Dispose() }
-}
+
 Run-Portable
 $copied=Join-Path $outputDirectory 'copia_compressed.mp4'
 $compressed=Join-Path $outputDirectory 'maior_compressed.mp4'

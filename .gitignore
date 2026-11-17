@@ -1,0 +1,62 @@
+# Compilação e ferramentas locais
+bin/
+obj/
+.vs/
+.idea/
+*.user
+*.suo
+.dotnet-home/
+.packages/
+.test-artifacts/
+TestResults/
+components/
+tools/ffmpeg/
+artifacts/
+publish/
+*.zip
+*.7z
+**/ffmpeg*/
+ffmpeg.exe
+ffprobe.exe
+ffplay.exe
+*.exe
+*.dll
+*.pdb
+
+# Configurações pessoais (publique apenas appsettings.example.json)
+appsettings.json
+appsettings.*.json
+!appsettings.example.json
+.env
+.env.*
+NuGet.local.Config
+
+# Dados e estado local
+Entrada/
+Prontos para Jira/
+.state/
+.work/
+*.log
+status.json
+status.json.tmp
+history.jsonl
+appsettings.json.lock
+appsettings.json.tmp
+appsettings.*.json.lock
+appsettings.*.json.tmp
+
+# Vídeos, inclusive fora das pastas padrão
+*.[mM][pP]4
+*.[mM][kK][vV]
+*.[aA][vV][iI]
+*.[mM][oO][vV]
+*.[wW][eE][bB][mM]
+*.[wW][mM][vV]
+*.[mM]4[vV]
+*.[mM][pP][gG]
+*.[mM][pP][eE][gG]
+*.[tT][sS]
+*.[mM]2[tT][sS]
+*.[fF][lL][vV]
+*.[mM][tT][sS]
+*.[oO][gG][vV]

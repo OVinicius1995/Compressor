@@ -1,0 +1,10 @@
+Jira Video Compressor
+Copyright 2026 OVinicius1995 e colaboradores.
+
+O código deste aplicativo é disponibilizado sob Apache License 2.0.
+Os componentes de terceiros mantêm suas próprias licenças.
+
+O modelo de documentação e distribuição por Releases foi inspirado no projeto
+singularidade-data-bridge, de singularidade-digital-dev:
+https://github.com/singularidade-digital-dev/singularidade-data-bridge
+Nenhum código de extração de banco de dados desse projeto foi incorporado.

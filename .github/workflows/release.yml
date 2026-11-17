@@ -1,0 +1,67 @@
+name: Build and release Windows
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versão da Release (ex.: v0.1.0)'
+        required: true
+        default: v0.1.0
+
+permissions:
+  contents: write
+
+concurrency:
+  group: compressor-release
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Build and test automatic preparation
+        run: |
+          dotnet build tests/Bootstrap/Bootstrap.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet tests/Bootstrap/bin/Release/net9.0-windows/BootstrapTests.dll $env:GITHUB_WORKSPACE
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build portable ZIP
+        run: ./scripts/Build-Portable.ps1
+      - name: Test portable executable and official FFmpeg download
+        run: |
+          $zip = Get-ChildItem artifacts -Filter JiraVideoCompressor-windows-x64.zip -Recurse | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          ./tests/Portable.ps1 -PackagePath $zip.FullName
+      - name: Publish Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_VERSION: ${{ inputs.version }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          $tag = if ($env:REQUESTED_VERSION) { $env:REQUESTED_VERSION } elseif ($env:REF_TYPE -eq 'tag') { $env:REF_NAME } else { 'v0.1.0' }
+          if ($tag -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$') { throw 'Versão inválida.' }
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) { Write-Host 'Versão já publicada; os arquivos existentes foram preservados.'; exit 0 }
+          $zip = Get-ChildItem artifacts -Filter JiraVideoCompressor-windows-x64.zip -Recurse | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          $notes = @'
+          Aplicativo Windows x64 com janela, bandeja, notificações e processamento sequencial.
+
+          Extraia o ZIP, abra Iniciar.cmd e clique em Salvar e iniciar.
+          O runtime já está incluído. Na primeira vez, o FFmpeg é preparado automaticamente pela internet a partir do fornecedor, com conferência de SHA-256. Depois o processamento é local.
+
+          Licença do aplicativo: Apache 2.0. Componentes de terceiros mantêm suas próprias licenças.
+          '@
+          $notes | Set-Content release-notes.txt -Encoding utf8
+          gh release create $tag $zip.FullName ($zip.FullName + '.sha256') --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Compressor $tag" --notes-file release-notes.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

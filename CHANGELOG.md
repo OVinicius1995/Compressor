@@ -2,6 +2,10 @@
 
 ## Em desenvolvimento
 
+- Instalador Windows x64 por usuário, com runtime, atalhos, desinstalador e preparação validada dos recursos de vídeo durante a instalação.
+- Preferências e histórico separados do programa, preservados em atualizações e desinstalação.
+- Geração do instalador com manifesto e SHA-256, teste do conteúdo extraído e inclusão no fluxo de distribuição.
+
 - Tema escuro compartilhado, campos com rótulos acima e ações agrupadas, preservando o rolo compactador.
 - Alertas com o mesmo tema, foco de teclado visível, adaptação ao alto contraste e rolagem para conteúdo ampliado.
 - Atualizações da fila preservam seleção e rolagem; testes visuais de tamanho mínimo e geometria ampliada.

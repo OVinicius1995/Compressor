@@ -14,6 +14,8 @@ Aplicativo para Windows que monitora uma pasta, aguarda a gravação terminar e 
 
 ## O que ele faz
 
+Para instalação com atalhos e preparação automática dos recursos, veja o [guia do instalador Windows](docs/INSTALACAO.md). A primeira instalação exige internet; depois, o processamento é local.
+
 | Recurso | Comportamento |
 | --- | --- |
 | Monitoramento | Descobre arquivos novos e os que já estavam na entrada |

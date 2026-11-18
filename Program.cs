@@ -11,8 +11,10 @@ internal static class Program
             return i >= 0 && i + 1 < args.Length && !args[i + 1].StartsWith("--") ? args[i + 1] : null;
         }
         string bundledConfig = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+        bool installed = File.Exists(Path.Combine(AppContext.BaseDirectory, "installed.marker"));
         string config = Path.GetFullPath(Option("--config") ??
-            (File.Exists(bundledConfig) ? bundledConfig : Path.Combine(ProjectDirectory(), "appsettings.json")));
+            (installed ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "JiraVideoCompressor", "appsettings.json") :
+            File.Exists(bundledConfig) ? bundledConfig : Path.Combine(ProjectDirectory(), "appsettings.json")));
         bool console = args.Any(a => a is "--console" or "--once" or "--manual" or "--prepare-tools");
         if (!console)
         {

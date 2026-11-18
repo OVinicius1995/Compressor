@@ -9,7 +9,7 @@ on:
       version:
         description: 'Versão da Release (ex.: v0.1.0)'
         required: true
-        default: v0.1.0
+        default: v0.2.0
 
 permissions:
   contents: write
@@ -47,11 +47,33 @@ jobs:
           $tool = Get-ChildItem .test-artifacts -Filter ffmpeg.exe -Recurse | Where-Object { $_.FullName -match 'portable-test-.*[\\/]tools[\\/]ffmpeg[\\/]bin[\\/]ffmpeg\.exe$' } | Select-Object -First 1
           if (!$tool) { throw 'Ferramenta real do teste portátil não encontrada.' }
           $settings = Get-Content appsettings.example.json -Raw | ConvertFrom-Json
-          $settings.ToolsDirectory = $tool.DirectoryName
+          $settings | Add-Member -NotePropertyName ToolsDirectory -NotePropertyValue $tool.DirectoryName
           $settings | ConvertTo-Json | Set-Content appsettings.json -Encoding utf8
           dotnet build tests/FakeEncoder/FakeEncoder.csproj -c Release
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           ./tests/MovaviAndSpeed.ps1 -Configuration Release
+      - name: Build Windows installer
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          $compiler = "${env:ProgramFiles(x86)}/Inno Setup 6/ISCC.exe"
+          choco upgrade innosetup --version=6.7.4 --yes --no-progress --allow-downgrade
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $version = if ($env:REQUESTED_VERSION) { $env:REQUESTED_VERSION.TrimStart('v') } elseif ('${{ github.ref_type }}' -eq 'tag') { '${{ github.ref_name }}'.TrimStart('v') } else { '0.2.0' }
+          $zip = Get-ChildItem artifacts -Filter JiraVideoCompressor-windows-x64.zip -Recurse | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          ./scripts/Build-Installer.ps1 -Version $version -PackageDirectory (Join-Path $zip.DirectoryName 'JiraVideoCompressor-windows-x64') -CompilerPath $compiler
+      - name: Test installation, upgrade and uninstall
+        run: |
+          $installer = Get-ChildItem artifacts -Filter 'Compressor-*-Setup-x64.exe' -Recurse | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          ./tests/InstallerWindows.ps1 -InstallerPath $installer.FullName
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Compressor-Windows
+          path: |
+            artifacts/**/JiraVideoCompressor-windows-x64.zip
+            artifacts/**/JiraVideoCompressor-windows-x64.zip.sha256
+            artifacts/**/Compressor-*-Setup-x64.exe
+            artifacts/**/Compressor-*-Setup-x64.exe.sha256
       - name: Publish Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -59,7 +81,7 @@ jobs:
           REF_TYPE: ${{ github.ref_type }}
           REF_NAME: ${{ github.ref_name }}
         run: |
-          $tag = if ($env:REQUESTED_VERSION) { $env:REQUESTED_VERSION } elseif ($env:REF_TYPE -eq 'tag') { $env:REF_NAME } else { 'v0.1.0' }
+          $tag = if ($env:REQUESTED_VERSION) { $env:REQUESTED_VERSION } elseif ($env:REF_TYPE -eq 'tag') { $env:REF_NAME } else { 'v0.2.0' }
           if ($tag -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$') { throw 'Versão inválida.' }
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
           if ($LASTEXITCODE -eq 0) { Write-Host 'Versão já publicada; os arquivos existentes foram preservados.'; exit 0 }
@@ -67,11 +89,12 @@ jobs:
           $notes = @'
           Aplicativo Windows x64 com janela, bandeja, notificações e processamento sequencial.
 
-          Extraia o ZIP, abra Iniciar.cmd e clique em Salvar e iniciar.
-          O runtime já está incluído. Na primeira vez, o FFmpeg é preparado automaticamente pela internet a partir do fornecedor, com conferência de SHA-256. Depois o processamento é local.
+          Execute o instalador Setup-x64.exe. Ele cria os atalhos e prepara os recursos de vídeo automaticamente. A instalação inicial precisa de internet.
+          Alternativa portátil: extraia o ZIP e abra Iniciar.cmd. O runtime já está incluído nas duas opções. FFmpeg é obtido diretamente do fornecedor com conferência de SHA-256. Depois o processamento é local.
 
           Licença do aplicativo: Apache 2.0. Componentes de terceiros mantêm suas próprias licenças.
           '@
           $notes | Set-Content release-notes.txt -Encoding utf8
-          gh release create $tag $zip.FullName ($zip.FullName + '.sha256') --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Compressor $tag" --notes-file release-notes.txt
+          $installer = Get-ChildItem artifacts -Filter 'Compressor-*-Setup-x64.exe' -Recurse | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          gh release create $tag $zip.FullName ($zip.FullName + '.sha256') $installer.FullName ($installer.FullName + '.sha256') --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Compressor $tag" --notes-file release-notes.txt
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

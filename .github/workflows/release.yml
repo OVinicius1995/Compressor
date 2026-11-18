@@ -82,7 +82,6 @@ jobs:
             artifacts/**/Compressor-*-Setup-x64.exe
             artifacts/**/Compressor-*-Setup-x64.exe.sha256
       - name: Publish Release
-        if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ github.token }}
           REQUESTED_VERSION: ${{ inputs.version }}
@@ -95,7 +94,7 @@ jobs:
           if ($LASTEXITCODE -eq 0) { Write-Host 'Versão já publicada; os arquivos existentes foram preservados.'; exit 0 }
           $zip = Get-ChildItem artifacts -Filter JiraVideoCompressor-windows-x64.zip -Recurse | Sort-Object LastWriteTime -Descending | Select-Object -First 1
           $notes = @'
-          Aplicativo Windows x64 com janela, bandeja, notificações e processamento sequencial.
+          Consulte o CHANGELOG.md desta versão para as novidades do Compressor.
 
           Execute o instalador Setup-x64.exe. Ele cria os atalhos e prepara os recursos de vídeo automaticamente. A instalação inicial precisa de internet.
           Alternativa portátil: extraia o ZIP e abra Iniciar.cmd. O runtime já está incluído nas duas opções. FFmpeg é obtido diretamente do fornecedor com conferência de SHA-256. Depois o processamento é local.

@@ -16,7 +16,7 @@ Mantenha os arquivos do ZIP juntos e use uma pasta com permissão de escrita. As
 
 O workflow [Build and release Windows](../.github/workflows/release.yml) usa um runner Windows, compila, testa a preparação automática, gera o pacote e testa o executável portátil. Só depois cria a Release e anexa o ZIP e o SHA-256.
 
-- Envios a `main` geram artefatos de teste. Para distribuir uma atualização, envie uma tag `vMAJOR.MINOR.PATCH` ou execute o workflow manualmente com essa versão. O ZIP, o executável e o instalador recebem a versão escolhida.
+- Ao enviar mudanças para `main`, o workflow publica a versão do `.csproj` se ela for inédita e os testes passarem. Também é possível enviar uma tag `vMAJOR.MINOR.PATCH` ou executar o workflow manualmente com essa versão. O instalador e o executável no ZIP recebem a versão escolhida.
 - Se essa versão já existir, ela é preservada.
 
 O código e os avisos do aplicativo usam [Apache License 2.0](../LICENSE), com atribuições em [NOTICE](../NOTICE). O modelo de Releases foi inspirado no [projeto de referência](https://github.com/singularidade-digital-dev/singularidade-data-bridge/blob/main/RELEASING.md); não há código de acesso a bancos incorporado.

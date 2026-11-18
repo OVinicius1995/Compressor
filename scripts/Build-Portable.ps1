@@ -8,11 +8,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
 if ($IncludeFFmpeg -and !$FFmpegDirectory) {
-    $config = Join-Path $projectRoot 'appsettings.json'
-    if (!(Test-Path $config)) { $config = Join-Path $projectRoot 'appsettings.example.json' }
-    $settings = Get-Content $config -Raw -Encoding UTF8 | ConvertFrom-Json
-    $FFmpegDirectory = $settings.ToolsDirectory
-    if (![IO.Path]::IsPathRooted($FFmpegDirectory)) { $FFmpegDirectory = Join-Path $projectRoot $FFmpegDirectory }
+    $FFmpegDirectory = Join-Path $projectRoot 'tools/ffmpeg/bin'
 }
 if ($IncludeFFmpeg) {
     $FFmpegDirectory = [IO.Path]::GetFullPath($FFmpegDirectory)
@@ -80,7 +76,6 @@ foreach ($entry in $licenseFiles) {
     [IO.File]::Copy($source,(Join-Path $licenses $entry[2]))
 }
 $freshConfig = Get-Content (Join-Path $projectRoot 'appsettings.example.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-$freshConfig.ToolsDirectory = 'tools/ffmpeg/bin'
 $freshConfig.InputDirectory = 'Entrada'
 $freshConfig.OutputDirectory = 'Prontos para Jira'
 $freshConfig.StateDirectory = '.state'
@@ -98,8 +93,9 @@ JIRA VIDEO COMPRESSOR - WINDOWS X64
 1. Extraia TODO o ZIP para uma pasta com permissao de escrita.
 2. Abra Iniciar.cmd ou JiraVideoCompressor.exe.
 3. Escolha entrada e saida. O FFmpeg ja esta configurado.
-4. Clique em Salvar e iniciar. Na primeira vez, aguarde a preparacao automatica
-   do FFmpeg pela internet, caso ele ainda nao esteja presente.
+4. Aguarde a preparacao automatica dos recursos de video ao abrir.
+   Na primeira vez, essa preparacao precisa de internet.
+   Quando o programa indicar que esta pronto, clique em Salvar e iniciar.
 5. Coloque os videos na entrada.
 6. Anexe somente os resultados validados da pasta de saida.
 
@@ -165,7 +161,7 @@ $manifest = [ordered]@{
 foreach ($file in [IO.Directory]::GetFiles($destination,'*',[IO.SearchOption]::AllDirectories)) {
     if ($file.EndsWith('.pdb',[StringComparison]::OrdinalIgnoreCase)) { [IO.File]::Delete($file); continue }
     $relative = $file.Substring($destination.Length + 1).Replace('\','/')
-    if ($relative -match '(^|/)(status\.json|history\.jsonl|instance\.lock|appsettings\.json\.lock)$' -or $relative -match '(^|/)(\.state|\.work|\.test-artifacts)/' -or $relative -match '\.(mp4|avi|mov|mkv|webm)$') { throw "Arquivo pessoal/gerado no pacote: $relative" }
+    if ($relative -match '(^|/)(startup\.log|status\.json|history\.jsonl|instance\.lock|appsettings\.json\.lock)$' -or $relative -match '(^|/)(\.state|\.work|\.test-artifacts)/' -or $relative -match '\.(mp4|avi|mov|mkv|webm)$') { throw "Arquivo pessoal/gerado no pacote: $relative" }
     $manifest.files += [ordered]@{ path = $relative; sha256 = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() }
 }
 [IO.File]::WriteAllText((Join-Path $destination 'package-manifest.json'),($manifest | ConvertTo-Json -Depth 6))

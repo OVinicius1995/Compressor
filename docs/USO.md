@@ -4,7 +4,7 @@
 
 ## Abrir e configurar
 
-Requisitos: Windows, SDK .NET 9 (9.0.301 ou posterior da série 9), FFmpeg com `libx264` e `ffprobe.exe` na mesma pasta. O FFmpeg não faz parte do repositório.
+Requisitos para compilar: Windows e SDK .NET 9 (9.0.301 ou posterior da série 9). Os recursos de vídeo são preparados automaticamente; a primeira preparação exige internet. O ZIP portátil já inclui o runtime.
 
 Abra **Iniciar.cmd** com duplo clique na raiz do projeto. Ele compila em Release e abre o painel. Também é possível abrir diretamente `bin/Release/net9.0-windows/JiraVideoCompressor.exe` depois de compilar, sem console adicional. Pelo terminal:
 
@@ -13,9 +13,11 @@ dotnet build -c Release
 dotnet run -c Release --no-build
 ```
 
-Na janela, escolha a pasta de entrada, a pasta de resultados e a pasta do FFmpeg/FFprobe. Clique em **Salvar e iniciar**. As escolhas ficam em `appsettings.json`, dentro do projeto, e são restauradas ao reabrir. O formato JSON permite manter as configurações de execução e as escolhas da janela no mesmo arquivo.
+Ao abrir, aguarde a preparação dos recursos. Na janela, escolha somente a pasta de entrada e a pasta de resultados. Clique em **Salvar e iniciar**. As escolhas ficam em `appsettings.json`, dentro do projeto, e são restauradas ao reabrir. O formato JSON permite manter as configurações de execução e as escolhas da janela no mesmo arquivo.
 
-O exemplo público usa `tools/ffmpeg/bin`. Você também pode selecionar uma instalação existente em outra pasta. Mantenha as ferramentas fora de `bin` e `obj`, que são diretórios de compilação e podem ser removidos por uma limpeza. O FFmpeg não precisa estar no PATH. Se a pasta padrão tools/ffmpeg/bin ainda não tiver as ferramentas, o aplicativo as prepara automaticamente pela internet ao iniciar, validando o SHA-256 do fornecedor. Uma instalação existente selecionada na janela continua sendo usada sem mudanças.
+Os recursos ficam sempre em `tools/ffmpeg/bin`, ao lado da configuração do aplicativo. A preparação automática confere tamanho e SHA-256 do fornecedor; cada abertura verifica se os dois programas funcionam e se a compressão está disponível. Não é preciso escolher executáveis nem configurar o PATH.
+
+Se houver falha, o programa mostra um alerta e bloqueia **Salvar e iniciar**, inclusive no menu da bandeja. Confira a internet e clique em **Tentar preparar novamente**. Se o problema continuar, extraia todo o ZIP atualizado para uma pasta sua, como Documentos, e abra `Iniciar.cmd`. O alerta informa a orientação correspondente ao erro. Nenhum vídeo é processado enquanto os recursos não estiverem prontos.
 
 Se `appsettings.json` ainda não existir, a janela usa `appsettings.example.json` como ponto de partida e salva a configuração ao iniciar. Também é possível copiar o exemplo manualmente na primeira configuração. Não substitua uma configuração pessoal existente pelo exemplo.
 
@@ -43,9 +45,15 @@ O monitor verifica tamanho e modificação a cada 2 segundos e exige 10 segundos
 
 Se um produtor fecha o arquivo entre gravações, uma pausa pode parecer o fim. Nesse caso, grave fora da entrada e mova o arquivo concluído para ela no mesmo volume, ou configure `StableSeconds` acima da maior pausa prevista.
 
+## Movavi e escolha do perfil
+
+A opção **Movavi: ignorar MKV provisório no monitor** fica ativa por padrão. O pré-vídeo MKV não entra na fila; o monitor aguarda a exportação em outro formato, como MP4, mesmo que ela tenha outro nome. Isso se aplica também aos arquivos presentes ao iniciar e a --once. Os arquivos MKV não são apagados. Se o resultado final desejado também for MKV, desmarque a opção ou use --manual.
+
+Em **Compressão**, escolha **Rápido (1 passagem)** ou **Preciso (2 passagens)**. O rápido reduz o trabalho inicial, mas pode ter menor eficiência de compressão/qualidade no mesmo bitrate; o preciso mantém o perfil anterior. As duas opções são salvas junto com as pastas e exigem parar/iniciar para mudar. Configurações antigas sem esses campos assumem Movavi ativo e perfil rápido. Resultados já validados continuam sendo reutilizados, sem recodificação automática por troca de perfil.
+
 ## Resultados e segurança dos arquivos
 
-Arquivos de até **10.000.000 bytes, inclusive**, são copiados integralmente. Os maiores são comprimidos em MP4/H.264, sem áudio (`-an`), em duas passagens, mirando **9.500.000 bytes** com margem para o contêiner. Podem ficar menores conforme o conteúdo. Há até três tentativas com bitrate menor. Vídeos longos demais para o mínimo de 50 kb/s são rejeitados e precisam ser divididos.
+Arquivos de até **10.000.000 bytes, inclusive**, são copiados integralmente. Os maiores são comprimidos em MP4/H.264, sem áudio (`-an`), no perfil rápido (uma passagem) ou preciso (duas passagens), mirando **9.500.000 bytes** com margem para o contêiner. Podem ficar menores conforme o conteúdo. O primeiro resultado válido encerra o trabalho. Somente uma saída acima do limite provoca nova tentativa, com bitrate recalculado pelo tamanho medido e duas passagens de recuperação, até MaxCompressionAttempts (padrão: 3). Vídeos longos demais para o mínimo de 50 kb/s são rejeitados e precisam ser divididos.
 
 Antes de liberar, o programa valida tamanho positivo, limite máximo e presença/duração do vídeo com FFprobe. Só então move o resultado completo para a raiz da saída. `.work` contém arquivos internos; nunca os anexe. Após encerramento forçado podem sobrar subpastas ali, removíveis com o programa parado.
 
@@ -61,7 +69,6 @@ Uma falha não impede os outros vídeos. O erro permanece na grade e nos registr
 
 | Campo | Finalidade / padrão |
 | --- | --- |
-| `ToolsDirectory` | Pasta contendo `ffmpeg.exe` e `ffprobe.exe` |
 | `InputDirectory` | Entrada monitorada (`Entrada`) |
 | `OutputDirectory` | Resultados validados (`Prontos para Jira`) |
 | `StateDirectory` | Registros persistentes e bloqueio (`.state`) |
@@ -69,7 +76,10 @@ Uma falha não impede os outros vídeos. O erro permanece na grade e nos registr
 | `LimitBytes` | Máximo permitido: `10000000`; pode ser reduzido |
 | `PollSeconds` | Intervalo de varredura: `2` |
 | `StableSeconds` | Janela sem mudanças: `10` |
-| `Extensions` | Extensões aceitas, sem diferenciar maiúsculas |
+| `IgnoreMkvInMonitor` | `true`: ignora MKV provisórios do Movavi; manual continua aceitando MKV |
+| `CompressionMode` | `fast`: uma passagem/veryfast; `precise`: duas passagens/medium |
+| `MaxCompressionAttempts` | Teto de recuperação de `1` a `3`; padrão `3` |
+| `Extensions` | Extensões aceitas, sem diferenciar maiúsculas; o filtro Movavi tem prioridade no monitor |
 
 Entrada, saída e estado devem ser pastas diferentes. Use pastas locais dedicadas e não as renomeie durante a execução. Para editar configurações, pare o monitor; alterações valem no próximo início.
 

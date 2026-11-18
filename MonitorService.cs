@@ -25,7 +25,7 @@ sealed class MonitorService(Settings settings, string configPath)
             if (manual is not null) return;
             while (true)
             {
-                foreach (string path in Directory.GetFiles(settings.InputDirectory).Where(p => settings.Extensions.Contains(Path.GetExtension(p), StringComparer.OrdinalIgnoreCase))) Status.Discover(path);
+                foreach (string path in Directory.GetFiles(settings.InputDirectory).Where(settings.AcceptsMonitoredFile)) Status.Discover(path);
                 Status.Heartbeat();
                 await Task.Delay(TimeSpan.FromSeconds(settings.PollSeconds), discoveryCancellation.Token);
             }
@@ -38,7 +38,7 @@ sealed class MonitorService(Settings settings, string configPath)
                 token.ThrowIfCancellationRequested();
                 if (discovery.IsFaulted) await discovery;
                 string[] paths = manual is not null ? [Path.GetFullPath(manual)] : Directory.GetFiles(settings.InputDirectory)
-                    .Where(p => settings.Extensions.Contains(Path.GetExtension(p), StringComparer.OrdinalIgnoreCase)).OrderBy(p => p).ToArray();
+                    .Where(settings.AcceptsMonitoredFile).OrderBy(p => p).ToArray();
                 foreach (string path in known.Except(paths, StringComparer.OrdinalIgnoreCase).ToArray())
                 {
                     Status.Update(path, "removed", 0, "Arquivo removido da entrada.");

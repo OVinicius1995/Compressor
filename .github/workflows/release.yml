@@ -42,6 +42,16 @@ jobs:
         run: |
           $zip = Get-ChildItem artifacts -Filter JiraVideoCompressor-windows-x64.zip -Recurse | Sort-Object LastWriteTime -Descending | Select-Object -First 1
           ./tests/Portable.ps1 -PackagePath $zip.FullName
+      - name: Test Movavi filtering and compression recovery
+        run: |
+          $tool = Get-ChildItem .test-artifacts -Filter ffmpeg.exe -Recurse | Where-Object { $_.FullName -match 'portable-test-.*[\\/]tools[\\/]ffmpeg[\\/]bin[\\/]ffmpeg\.exe$' } | Select-Object -First 1
+          if (!$tool) { throw 'Ferramenta real do teste portátil não encontrada.' }
+          $settings = Get-Content appsettings.example.json -Raw | ConvertFrom-Json
+          $settings.ToolsDirectory = $tool.DirectoryName
+          $settings | ConvertTo-Json | Set-Content appsettings.json -Encoding utf8
+          dotnet build tests/FakeEncoder/FakeEncoder.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./tests/MovaviAndSpeed.ps1 -Configuration Release
       - name: Publish Release
         env:
           GH_TOKEN: ${{ github.token }}

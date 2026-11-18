@@ -2,7 +2,7 @@ param([string]$Configuration = 'Debug')
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
 $settings = Get-Content (Join-Path $projectRoot 'appsettings.json') -Raw | ConvertFrom-Json
-$tools = if ([IO.Path]::IsPathRooted($settings.ToolsDirectory)) { $settings.ToolsDirectory } else { [IO.Path]::GetFullPath((Join-Path $projectRoot $settings.ToolsDirectory)) }
+$tools=if ([string]::IsNullOrWhiteSpace($settings.ToolsDirectory)) { Join-Path $projectRoot 'tools/ffmpeg/bin' } elseif ([IO.Path]::IsPathRooted($settings.ToolsDirectory)) { $settings.ToolsDirectory } else { Join-Path $projectRoot $settings.ToolsDirectory }
 $ffmpeg = Join-Path $tools 'ffmpeg.exe'
 $ffprobe = Join-Path $tools 'ffprobe.exe'
 $dotnet = Join-Path $env:ProgramFiles 'dotnet/dotnet.exe'
@@ -13,7 +13,7 @@ $outputDir = Join-Path $testRoot 'Prontos para Jira'
 $stateDir = Join-Path $testRoot 'state'
 [IO.Directory]::CreateDirectory($inputDir) | Out-Null
 $config = Join-Path $testRoot 'appsettings.json'
-@{ ToolsDirectory = $tools; InputDirectory = $inputDir; OutputDirectory = $outputDir; StateDirectory = $stateDir; StableSeconds = 0.5; PollSeconds = 0.1; TargetBytes = 9500000; LimitBytes = 10000000 } | ConvertTo-Json | Set-Content $config -Encoding UTF8
+@{ ToolsDirectory = $tools; InputDirectory = $inputDir; OutputDirectory = $outputDir; StateDirectory = $stateDir; StableSeconds = 0.5; PollSeconds = 0.1; TargetBytes = 9500000; LimitBytes = 10000000; CompressionMode = 'precise' } | ConvertTo-Json | Set-Content $config -Encoding UTF8
 
 function Assert($condition, [string]$message) { if (!$condition) { throw $message } }
 function Start-App([bool]$once = $true) {
@@ -92,7 +92,12 @@ try {
     $bytes = [IO.File]::ReadAllBytes($small)
     $writer.Write($bytes, 0, [int]($bytes.Length / 2)); $writer.Flush()
     $app = Start-App $false
-    Start-Sleep -Milliseconds 1200
+    # A validação dos recursos precede o monitor; aguarde o estado observado, sem tempo fixo.
+    $readyBy=[DateTime]::UtcNow.AddSeconds(20)
+    do {
+        Start-Sleep -Milliseconds 100
+        $snapshot=Get-Content (Join-Path $testRoot 'status.json') -Raw | ConvertFrom-Json
+    } while ((!$snapshot.running -or $snapshot.waiting -ne 1) -and [DateTime]::UtcNow -lt $readyBy)
     Assert ((Results).Count -eq 3) 'Arquivo bloqueado foi liberado prematuramente.'
     $snapshot = Get-Content (Join-Path $testRoot 'status.json') -Raw | ConvertFrom-Json
     Assert ($snapshot.waiting -eq 1 -and $snapshot.running) 'Status da fila bloqueada incorreto.'

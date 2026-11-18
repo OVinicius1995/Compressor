@@ -8,6 +8,11 @@ sealed class Settings
     public static Settings Load(string path)
     {
         var settings = JsonSerializer.Deserialize<Settings>(File.ReadAllText(path)) ?? throw new InvalidDataException("Configuração vazia.");
+        // Compatibilidade: aproveita a instalação antiga, mas não permite mudar o destino gerenciado.
+        using var document = JsonDocument.Parse(File.ReadAllText(path));
+        if (document.RootElement.TryGetProperty("ToolsDirectory", out var legacy) && legacy.ValueKind == JsonValueKind.String &&
+            !string.IsNullOrWhiteSpace(legacy.GetString()))
+            settings.LegacyToolsDirectory = Path.GetFullPath(legacy.GetString()!, Path.GetDirectoryName(path)!);
         settings.Resolve(Path.GetDirectoryName(path)!);
         return settings;
     }
@@ -18,7 +23,10 @@ sealed class Settings
         File.WriteAllText(temporary, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
         File.Move(temporary, path, overwrite: true);
     }
-    public string ToolsDirectory { get; set; } = "";
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string ToolsDirectory { get; private set; } = "";
+    [System.Text.Json.Serialization.JsonIgnore]
+    internal string? LegacyToolsDirectory { get; private set; }
     public string InputDirectory { get; set; } = "Entrada";
     public string OutputDirectory { get; set; } = "Prontos para Jira";
     public string StateDirectory { get; set; } = ".state";
@@ -26,25 +34,33 @@ sealed class Settings
     public long LimitBytes { get; set; } = 10_000_000;
     public double PollSeconds { get; set; } = 2;
     public double StableSeconds { get; set; } = 10;
+    public bool IgnoreMkvInMonitor { get; set; } = true;
+    public string CompressionMode { get; set; } = "fast";
+    public int MaxCompressionAttempts { get; set; } = 3;
     public string[] Extensions { get; set; } = [".mp4", ".mkv", ".avi", ".mov", ".webm", ".wmv", ".m4v"];
     [System.Text.Json.Serialization.JsonIgnore]
     public string FFmpeg => Path.Combine(ToolsDirectory, "ffmpeg.exe");
     [System.Text.Json.Serialization.JsonIgnore]
     public string FFprobe => Path.Combine(ToolsDirectory, "ffprobe.exe");
+    public bool AcceptsMonitoredFile(string path) =>
+        Extensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase) &&
+        !(IgnoreMkvInMonitor && Path.GetExtension(path).Equals(".mkv", StringComparison.OrdinalIgnoreCase));
     public void Resolve(string root)
     {
-        ToolsDirectory = Path.TrimEndingDirectorySeparator(Path.GetFullPath(ToolsDirectory, root));
+        ToolsDirectory = Path.GetFullPath(Path.Combine(root, "tools", "ffmpeg", "bin"));
         InputDirectory = Path.TrimEndingDirectorySeparator(Path.GetFullPath(InputDirectory, root));
         OutputDirectory = Path.TrimEndingDirectorySeparator(Path.GetFullPath(OutputDirectory, root));
         StateDirectory = Path.TrimEndingDirectorySeparator(Path.GetFullPath(StateDirectory, root));
     }
     public void Validate()
     {
-        if (!File.Exists(FFmpeg) || !File.Exists(FFprobe)) throw new InvalidDataException("FFmpeg/FFprobe não encontrado. Ajuste ToolsDirectory.");
+        if (!File.Exists(FFmpeg) || !File.Exists(FFprobe)) throw new InvalidDataException("Os recursos de vídeo não estão prontos. Abra o aplicativo e clique em Tentar preparar novamente.");
         if (TargetBytes <= 0 || TargetBytes >= LimitBytes || LimitBytes > 10_000_000) throw new InvalidDataException("Use 0 < TargetBytes < LimitBytes <= 10000000.");
         if (!double.IsFinite(PollSeconds) || !double.IsFinite(StableSeconds) || PollSeconds <= 0 || StableSeconds <= 0) throw new InvalidDataException("Os intervalos devem ser positivos e finitos.");
         if (new[] { InputDirectory, OutputDirectory, StateDirectory }.Distinct(StringComparer.OrdinalIgnoreCase).Count() != 3) throw new InvalidDataException("Entrada, saída e estado devem ser pastas diferentes.");
         if (Extensions.Length == 0 || Extensions.Any(e => !e.StartsWith('.') || e.Contains('/') || e.Contains('\\'))) throw new InvalidDataException("Extensões inválidas.");
+        if (!new[] { "fast", "precise" }.Contains(CompressionMode, StringComparer.OrdinalIgnoreCase)) throw new InvalidDataException("CompressionMode deve ser fast ou precise.");
+        if (MaxCompressionAttempts is < 1 or > 3) throw new InvalidDataException("MaxCompressionAttempts deve estar entre 1 e 3.");
     }
 }
 
@@ -134,15 +150,27 @@ sealed class VideoProcessor(Settings settings, StatusStore status)
             {
                 double bitrate = Math.Floor(settings.TargetBytes * 8.0 / duration * .98);
                 bool success = false;
-                for (int attempt = 1; attempt <= 3 && bitrate >= 50_000; attempt++, bitrate = Math.Floor(bitrate * .90))
+                for (int attempt = 1; attempt <= settings.MaxCompressionAttempts && bitrate >= 50_000; attempt++)
                 {
-                    status.Update(input, "compressing", 0, $"Tentativa {attempt}/3 · análise (passagem 1/2).");
+                    // O caminho rápido usa uma passagem; só uma saída acima do limite exige recuperação.
+                    bool twoPass = settings.CompressionMode.Equals("precise", StringComparison.OrdinalIgnoreCase) || attempt > 1;
+                    int passes = twoPass ? 2 : 1;
                     string[] common = ["-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-i", input,
-                        "-map", "0:v:0", "-an", "-c:v", "libx264", "-preset", "medium", "-b:v", bitrate.ToString("0", CultureInfo.InvariantCulture),
-                        "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2", "-pix_fmt", "yuv420p", "-passlogfile", Path.Combine(work, "pass")];
-                    await Encode(token, input, duration, attempt, 1, [.. common, "-stats_period", "0.2", "-progress", "pipe:1", "-pass", "1", "-f", "null", "NUL"]);
-                    await Encode(token, input, duration, attempt, 2, [.. common, "-stats_period", "0.2", "-progress", "pipe:1", "-pass", "2", "-movflags", "+faststart", temporary]);
-                    if (new FileInfo(temporary).Length is > 0 && new FileInfo(temporary).Length <= settings.LimitBytes) { success = true; break; }
+                        "-map", "0:v:0", "-an", "-c:v", "libx264", "-preset", twoPass ? "medium" : "veryfast", "-b:v", bitrate.ToString("0", CultureInfo.InvariantCulture),
+                        "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2", "-pix_fmt", "yuv420p"];
+                    if (twoPass)
+                    {
+                        common = [.. common, "-passlogfile", Path.Combine(work, "pass")];
+                        await Encode(token, input, duration, attempt, 1, passes, [.. common, "-stats_period", "0.2", "-progress", "pipe:1", "-pass", "1", "-f", "null", "NUL"]);
+                        await Encode(token, input, duration, attempt, 2, passes, [.. common, "-stats_period", "0.2", "-progress", "pipe:1", "-pass", "2", "-movflags", "+faststart", temporary]);
+                    }
+                    else await Encode(token, input, duration, attempt, 1, passes, [.. common, "-stats_period", "0.2", "-progress", "pipe:1", "-movflags", "+faststart", temporary]);
+                    long produced = new FileInfo(temporary).Length;
+                    if (produced <= 0) throw new InvalidDataException("O encoder gerou um arquivo vazio.");
+                    if (produced <= settings.LimitBytes) { success = true; break; }
+                    // Ajusta conforme o tamanho medido, em vez de repetir a mesma configuração.
+                    bitrate = Math.Floor(bitrate * Math.Min(.95, settings.TargetBytes / (double)produced * .97));
+                    Console.WriteLine($"Resultado acima do limite ({produced} bytes); ajustando bitrate para recuperação.");
                 }
                 if (!success) throw new InvalidDataException("Não foi possível atingir o limite; divida o vídeo em partes.");
             }
@@ -207,15 +235,16 @@ sealed class VideoProcessor(Settings settings, StatusStore status)
         }
     }
 
-    private Task<string> Encode(CancellationToken token, string input, double duration, int attempt, int pass, string[] arguments)
+    private Task<string> Encode(CancellationToken token, string input, double duration, int attempt, int pass, int passes, string[] arguments)
     {
-        status.Update(input, "compressing", pass == 1 ? 0 : 49.5, $"Tentativa {attempt}/3 · passagem {pass}/2.");
+        string description = passes == 1 ? $"Tentativa {attempt} · rápida (1 passagem)." : $"Tentativa {attempt} · precisa · passagem {pass}/2.";
+        status.Update(input, "compressing", (pass - 1) * 99.0 / passes, description);
         return RunProgress(settings.FFmpeg, token, line =>
         {
             if (line.StartsWith("out_time_us=") && double.TryParse(line.AsSpan(12), CultureInfo.InvariantCulture, out double microseconds))
             {
                 double fraction = Math.Clamp(microseconds / 1_000_000 / duration, 0, 1);
-                status.Update(input, "compressing", (pass - 1 + fraction) * 49.5, $"Tentativa {attempt}/3 · passagem {pass}/2.");
+                status.Update(input, "compressing", (pass - 1 + fraction) * 99 / passes, description);
             }
         }, arguments);
     }

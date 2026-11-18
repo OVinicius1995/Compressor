@@ -23,6 +23,14 @@ internal static class BootstrapChecks
         }
         var progress = new ImmediateProgress();
         var settings = Configuration(root);
+        string legacyConfig = Path.Combine(root, "old-settings.json");
+        File.WriteAllText(legacyConfig, JsonSerializer.Serialize(new { ToolsDirectory = "old-custom-tools" }));
+        var migratedSettings = Settings.Load(legacyConfig);
+        Check(migratedSettings.ToolsDirectory == Path.Combine(root, "tools", "ffmpeg", "bin"), "Configuração antiga alterou o destino fixo.");
+        migratedSettings.Save(legacyConfig);
+        Check(!File.ReadAllText(legacyConfig).Contains("ToolsDirectory"), "Configuração continua expondo caminhos dos recursos.");
+        Check(ToolBootstrapper.UserGuidance(new HttpRequestException()).Contains("internet") &&
+            ToolBootstrapper.UserGuidance(new UnauthorizedAccessException()).Contains("Documentos"), "Orientação de preparação não é acionável.");
         var handler = new VendorHandler(archive);
         using var client = new HttpClient(handler);
         await ToolBootstrapper.EnsureAsync(settings, Path.Combine(root, "appsettings.json"), progress, CancellationToken.None, client);
@@ -50,11 +58,25 @@ internal static class BootstrapChecks
         try { await ToolBootstrapper.EnsureAsync(Configuration(canceledRoot), Path.Combine(canceledRoot,"appsettings.json"), null, canceled.Token, client); }
         catch (OperationCanceledException) { interrupted = true; }
         Check(interrupted && !File.Exists(Configuration(canceledRoot).FFmpeg), "Cancelamento instalou arquivo parcial.");
+        if (args.Length > 1)
+        {
+            string migrationRoot = Path.Combine(root, "legacy-installation");
+            Directory.CreateDirectory(migrationRoot);
+            string path = Path.Combine(migrationRoot, "appsettings.json");
+            File.WriteAllText(path, JsonSerializer.Serialize(new { ToolsDirectory = Path.GetFullPath(args[1]) }));
+            var migration = Settings.Load(path);
+            await ToolBootstrapper.PrepareAsync(migration, path, null, CancellationToken.None);
+            await ToolBootstrapper.ValidateReadyAsync(migration, CancellationToken.None);
+            Check(File.Exists(migration.FFmpeg) && File.Exists(migration.FFprobe), "Migração da instalação existente falhou.");
+            File.Delete(migration.FFprobe);
+            await ToolBootstrapper.PrepareAsync(migration, path, null, CancellationToken.None);
+            Check(File.Exists(migration.FFprobe), "Componente ausente não foi recuperado da instalação antiga.");
+        }
         Console.WriteLine("PASSOU: preparação automática, hash, tamanho, origem, licença, progresso, reutilização e cancelamento.");
     }
     static Settings Configuration(string root)
     {
-        var settings = new Settings { ToolsDirectory = "tools/ffmpeg/bin" };
+        var settings = new Settings();
         settings.Resolve(root);
         return settings;
     }

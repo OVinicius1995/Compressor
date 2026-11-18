@@ -14,10 +14,10 @@ Para configurar um ambiente novo sem usar a janela:
 
 ```powershell
 Copy-Item appsettings.example.json appsettings.json
-# Edite ToolsDirectory e as pastas no arquivo criado antes de executar os testes.
+# Prepare os recursos na pasta fixa antes dos testes de integração.
 ```
 
-Não substitua um `appsettings.json` existente se quiser manter suas preferências. O exemplo usa `tools/ffmpeg/bin`; um caminho absoluto para outra instalação também é aceito. FFmpeg e FFprobe precisam estar disponíveis antes da integração, mas não são necessários para compilar o C#. A pasta padrão pode ser preparada automaticamente pelo aplicativo, incluindo no modo `--prepare-tools`.
+Não substitua um `appsettings.json` existente se quiser manter suas preferências. O destino é fixo: `tools/ffmpeg/bin`, relativo à pasta da configuração. O antigo `ToolsDirectory` é aceito somente para importar uma instalação existente; ao salvar, essa propriedade é removida. FFmpeg e FFprobe precisam estar disponíveis antes da integração, mas não são necessários para compilar o C#. A pasta padrão pode ser preparada automaticamente pelo aplicativo, incluindo no modo `--prepare-tools`.
 
 ## Organização do código
 
@@ -58,3 +58,15 @@ O ícone tem versões de 16 a 256 pixels em `Assets/roller.ico`. O desenho origi
 
 Sem pacotes externos: `NuGet.Config` mantém a restauração sem fontes externas e `global.json` seleciona o SDK 9. É necessário o pacote de referência Windows Desktop do SDK.
 
+
+## Movavi e velocidade
+
+```powershell
+dotnet build tests/FakeEncoder/FakeEncoder.csproj -c Debug
+powershell -NoProfile -ExecutionPolicy Bypass -File tests/MovaviAndSpeed.ps1 -Configuration Debug
+```
+
+O teste verifica que um MKV estável não entra na fila antes da exportação, inclusive com nomes diferentes, e que a opção desativada e o modo manual continuam aceitando MKV. Com FFmpeg real, compara os dois perfis e grava tempos de processo completo e codificação separadamente. Os tempos dependem da máquina e do vídeo; não há uma asserção frágil de fator de velocidade.
+
+Um encoder controlado, usado apenas no teste, produz um resultado acima do limite e depois um válido. FFprobe e vídeo continuam reais: isso verifica a recuperação em duas passagens, a redução do bitrate, o teto de tentativas e a ausência de publicação acima do limite. Esse encoder não é incluído no aplicativo nem no ZIP. A integração principal usa explicitamente precise para preservar a cobertura das duas passagens; os testes de Movavi exercitam o novo padrão fast.
+Falhas de preparação ficam em startup.log, ao lado da configuração. O arquivo pode conter caminhos locais; é ignorado pelo Git e não deve ser distribuído. As verificações incluem execução de FFmpeg/FFprobe e disponibilidade de libx264, com timeout. Arquivos gerenciados inválidos são isolados em .work/invalid-tools-* antes da recuperação.

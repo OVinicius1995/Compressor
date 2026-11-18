@@ -1,6 +1,21 @@
 # Histórico de alterações
 
-## Em preparação — primeira publicação
+## Em desenvolvimento
+
+- Tema escuro compartilhado, campos com rótulos acima e ações agrupadas, preservando o rolo compactador.
+- Alertas com o mesmo tema, foco de teclado visível, adaptação ao alto contraste e rolagem para conteúdo ampliado.
+- Atualizações da fila preservam seleção e rolagem; testes visuais de tamanho mínimo e geometria ampliada.
+
+- Interface sem escolha de FFmpeg/FFprobe: instalação automática em pasta fixa, com migração da configuração antiga.
+- Validação dos recursos ao abrir e antes de monitorar; alerta claro, bloqueio e botão de recuperação em caso de falha.
+
+- Modo Movavi ativo por padrão para ignorar MKV provisórios no monitor e evitar trabalho duplicado.
+- Perfil rápido com uma passagem/veryfast; perfil preciso anterior disponível no painel.
+- Recuperação só quando o tamanho exceder o limite, com bitrate recalculado e teto configurável de tentativas.
+- Preferências de Movavi e compressão salvas/restauradas com as pastas.
+- Testes de exportação Movavi, modo manual MKV, filtros, perfis, recuperação e limite final.
+
+## v0.1.0 — 2026-11-17
 
 ### Funcionalidades
 

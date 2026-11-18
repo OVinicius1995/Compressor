@@ -31,7 +31,7 @@ internal static class Program
             using var cancellation = new CancellationTokenSource();
             Console.CancelKeyPress += (_, e) => { e.Cancel = true; cancellation.Cancel(); };
             var settings = Settings.Load(config);
-            ToolBootstrapper.EnsureAsync(settings, config, null, cancellation.Token).GetAwaiter().GetResult();
+            ToolBootstrapper.PrepareAsync(settings, config, null, cancellation.Token).GetAwaiter().GetResult();
             if (args.Contains("--prepare-tools")) return 0;
             return new MonitorService(settings, config).Run(args.Contains("--once") || manual is not null, manual, cancellation.Token).GetAwaiter().GetResult();
         }

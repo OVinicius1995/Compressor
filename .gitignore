@@ -60,3 +60,6 @@ appsettings.*.json.tmp
 *.[fF][lL][vV]
 *.[mM][tT][sS]
 *.[oO][gG][vV]
+
+# Referencia visual privada, mantida apenas localmente
+docs/IDENTIDADE-VISUAL.md

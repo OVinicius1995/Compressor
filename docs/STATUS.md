@@ -4,7 +4,7 @@
 
 ## Exemplo do snapshot
 
-Exemplo ilustrativo de um vídeo durante a segunda passagem. Os nomes e caminhos abaixo são fictícios:
+Exemplo ilustrativo de um vídeo durante a segunda passagem do perfil preciso. Os nomes e caminhos abaixo são fictícios:
 
 ```json
 {
@@ -23,7 +23,7 @@ Exemplo ilustrativo de um vídeo durante a segunda passagem. Os nomes e caminhos
       "fileName": "evidencia.mp4",
       "state": "compressing",
       "percent": 62.4,
-      "message": "Tentativa 1/3 · passagem 2/2.",
+      "message": "Tentativa 1 · precisa · passagem 2/2.",
       "outputPath": null,
       "updatedAt": "2026-11-17T12:00:00+00:00"
     }
@@ -42,9 +42,11 @@ Campos de cada trabalho: `sourcePath`, `fileName`, `state`, `percent`, `message`
 
 Contadores: `waiting` são vídeos aguardando estabilidade/disponibilidade ou sua vez; `compressing` vale 0 ou 1; `processing` inclui hash, análise, compressão, cópia e validação, também no máximo 1; `completed` inclui `completed` e `skipped`; `failed` conta erros. Os contadores/lista representam a sessão e são reconstruídos a cada início. O histórico preserva sessões anteriores.
 
-O percentual usa `out_time_us` do FFmpeg: primeira passagem de 0 a 49,5%, segunda de 49,5 a 99%. A cópia usa bytes transferidos. 100% só é registrado após validação e liberação. Uma nova tentativa de bitrate reinicia o percentual e informa a tentativa em `message`; não é uma estimativa de tempo restante.
+O percentual usa out_time_us do FFmpeg. No perfil rápido, a passagem única vai de 0 a 99%. No preciso e na recuperação, a primeira passagem vai de 0 a 49,5% e a segunda de 49,5 a 99%. A cópia usa bytes transferidos. 100% só é registrado após validação e liberação. Uma nova tentativa de bitrate reinicia o percentual e informa a tentativa em `message`; não é uma estimativa de tempo restante.
 
 O snapshot é atualizado nas mudanças de etapa e, durante progresso, no máximo a cada 500 ms, além de heartbeat durante monitoramento. O widget pode consultar a cada segundo. Em .NET, abra com `FileShare.ReadWrite | FileShare.Delete` para permitir a substituição; outros leitores devem fechar o arquivo após cada leitura. Após encerramento forçado, `running` pode permanecer verdadeiro: verifique o PID e a idade de `updatedAt`, considerando `PollSeconds`.
 
 Não edite esses arquivos com o monitor ativo. O histórico não tem rotação automática; arquive-o com o aplicativo parado quando necessário. Ambos contêm caminhos locais e ficam fora do Git.
 
+
+Arquivos MKV ignorados pelo modo Movavi não entram em jobs nem no contador waiting. Desativar o filtro permite monitorá-los; o modo manual não aplica esse filtro.

@@ -4,11 +4,11 @@
 
 ## Baixar e usar
 
-Baixe `JiraVideoCompressor-windows-x64.zip` em [Releases](https://github.com/OVinicius1995/Compressor/releases), extraia todo o conteúdo e abra `Iniciar.cmd`. Escolha entrada e saída e clique em **Salvar e iniciar**.
+Baixe `JiraVideoCompressor-windows-x64.zip` em [Releases](https://github.com/OVinicius1995/Compressor/releases), extraia todo o conteúdo e abra `Iniciar.cmd`. Aguarde a preparação dos recursos, escolha entrada e saída e clique em **Salvar e iniciar**.
 
 O runtime .NET e Windows Forms já acompanham o pacote. Na primeira vez, o aplicativo prepara FFmpeg e FFprobe automaticamente pela internet. Ele consulta a distribuição do fornecedor, baixa por HTTPS, confere o tamanho e o SHA-256 e instala as ferramentas em `tools/ffmpeg`. A licença do fornecedor fica em `tools/ffmpeg/LICENSE.txt`; a origem e o hash, em `ORIGIN.json`.
 
-Não é necessário instalar SDK, executar comandos ou configurar o PATH. A primeira preparação exige internet e pode baixar cerca de 200 MB; as próximas execuções reutilizam as ferramentas. O processamento dos vídeos é local. Se uma instalação existente for selecionada no painel, ela continua sendo usada.
+Não é necessário instalar SDK, executar comandos ou configurar o PATH. A primeira preparação exige internet e pode baixar cerca de 200 MB; as próximas execuções reutilizam as ferramentas. O processamento dos vídeos é local. Não há seleção de executáveis no painel. Configurações antigas são migradas automaticamente para a pasta gerenciada. Se houver falha, o alerta explica a correção e o monitoramento fica bloqueado até usar **Tentar preparar novamente** com sucesso.
 
 Mantenha os arquivos do ZIP juntos e use uma pasta com permissão de escrita. As preferências ficam no `appsettings.json` ao lado do executável. Para atualizar, encerre pela bandeja e preserve sua configuração e `.state`. O pacote é destinado a Windows x64.
 

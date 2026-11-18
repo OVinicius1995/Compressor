@@ -20,7 +20,7 @@ Assert (![IO.File]::Exists((Join-Path $app 'status.json'))) 'Pacote contém stat
 $configPath=Join-Path $app 'appsettings.json'
 $settings=Get-Content $configPath -Raw -Encoding UTF8 | ConvertFrom-Json
 Assert ($settings.InputDirectory -eq 'Entrada' -and $settings.OutputDirectory -eq 'Prontos para Jira') 'Configuração contém caminhos pessoais.'
-Assert ($settings.ToolsDirectory -eq 'tools/ffmpeg/bin') 'Caminho do FFmpeg não é portátil.'
+Assert (!$settings.PSObject.Properties['ToolsDirectory']) 'Configuração ainda expõe o caminho dos componentes.'
 $settings.PollSeconds=0.1; $settings.StableSeconds=0.3
 [IO.File]::WriteAllText($configPath,($settings | ConvertTo-Json))
 function Run-Portable([string]$Arguments='--once', [int]$TimeoutMs=60000) {

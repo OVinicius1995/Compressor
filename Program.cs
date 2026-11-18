@@ -15,7 +15,7 @@ internal static class Program
         string config = Path.GetFullPath(Option("--config") ??
             (installed ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "JiraVideoCompressor", "appsettings.json") :
             File.Exists(bundledConfig) ? bundledConfig : Path.Combine(ProjectDirectory(), "appsettings.json")));
-        bool console = args.Any(a => a is "--console" or "--once" or "--manual" or "--prepare-tools");
+        bool console = args.Any(a => a is "--console" or "--once" or "--manual" or "--prepare-tools" or "--scheduled-cleanup" or "--disable-cleanup");
         if (!console)
         {
             ApplicationConfiguration.Initialize();
@@ -24,6 +24,13 @@ internal static class Program
         }
         try
         {
+            if (args.Contains("--disable-cleanup"))
+            {
+                if (CleanupSchedule.Load(config) is { Enabled: true } scheduled)
+                    CleanupSchedule.Save(config, scheduled with { Enabled = false });
+                return 0;
+            }
+            if (args.Contains("--scheduled-cleanup")) return CleanupSchedule.Run(config);
             string? manual = Option("--manual");
             if (args.Contains("--manual") && manual is null)
             {

@@ -11,6 +11,12 @@ sealed class MainForm : Form
     private readonly CheckBox ignoreMkv = new ThemeCheckBox { Text = "Movavi: ignorar MKV provisório no monitor", Checked = true };
     private readonly ComboBox compressionMode = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 235 };
     private readonly ToolTip optionHelp = new();
+    private readonly Button updates = new ThemeButton { Text = "Verificar atualizações" };
+    private readonly Button clearCompleted = new ThemeButton { Text = "Limpar concluídos", Enabled = false };
+    private DateTimeOffset clearedThrough;
+    private bool checkingUpdates;
+    private Version? availableVersion;
+    private string ClearMarker => Path.Combine(Path.GetDirectoryName(configPath)!, "grid-cleared.txt");
     private readonly Button start = new ThemeButton { Text = "Salvar e iniciar", IsPrimary = true };
     private readonly Button stop = new ThemeButton { Text = "Parar", Enabled = false };
     private readonly Label summary = new() { AutoSize = true, Padding = new Padding(0, 12, 0, 8) };
@@ -111,7 +117,12 @@ sealed class MainForm : Form
         var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(0, 8, 0, 16), Margin = Padding.Empty };
         var openOutput = new ThemeButton { Text = "Abrir resultados" };
         var hide = new ThemeButton { Text = "Ocultar na bandeja" };
-        actions.Controls.AddRange([start, stop, openOutput, hide]);
+        actions.Controls.AddRange([start, stop, openOutput, hide, clearCompleted]);
+        header.ColumnCount = 3;
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        header.Controls.Add(updates, 2, 0);
+        updates.Click += async (_, _) => await CheckUpdatesAsync(true);
+        clearCompleted.Click += (_, _) => ClearCompleted();
         layout.Controls.Add(actions, 0, 6);
         var recovery = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, Margin = Padding.Empty };
         recovery.Controls.Add(retryPreparation);
@@ -150,7 +161,24 @@ sealed class MainForm : Form
         monitoring.Controls.Add(grid, 0, 1);
         layout.Controls.Add(monitoring, 0, 9);
         layout.Controls.Add(new Label { Text = "Vídeos sem áudio · Até 10 MB por arquivo · Um vídeo por vez", ForeColor = VisualTheme.Support, AutoSize = true, Margin = new Padding(0, 16, 0, 0) }, 0, 10);
-        layout.Controls.Add(new Label { Text = "Fechar mantém o aplicativo na bandeja. Para encerrar, use Sair no ícone.", ForeColor = VisualTheme.Support, AutoSize = true, Margin = new Padding(0, 8, 0, 0) }, 0, 11);
+        var footer = new TableLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, ColumnCount = 2, Margin = Padding.Empty };
+        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        footer.Controls.Add(new Label { Text = "Fechar mantém o aplicativo na bandeja. Para encerrar, use Sair no ícone.", ForeColor = VisualTheme.Support, AutoSize = true, Margin = new Padding(0, 8, 0, 0) }, 0, 0);
+        var cleanup = new ThemeButton { Name = "cleanupSchedule", Text = "♻", AccessibleName = "Agendar exclusão de vídeos", Font = new Font("Segoe UI Symbol", 16),
+            AutoSize = false, MinimumSize = new Size(40, 38), Size = new Size(40, 38), Padding = Padding.Empty, Margin = Padding.Empty };
+        optionHelp.SetToolTip(cleanup, cleanup.AccessibleName);
+        cleanup.Click += (_, _) =>
+        {
+            try
+            {
+                using var dialog = new CleanupDialog(configPath, settings, applicationIcon);
+                dialog.ShowDialog(this);
+            }
+            catch (Exception ex) { ShowError(ex); }
+        };
+        footer.Controls.Add(cleanup, 1, 0);
+        layout.Controls.Add(footer, 0, 11);
         viewport.Controls.Add(layout);
         Controls.Add(viewport);
 
@@ -195,7 +223,9 @@ sealed class MainForm : Form
                 output.Text = settings.OutputDirectory;
                 ignoreMkv.Checked = settings.IgnoreMkvInMonitor;
                 compressionMode.SelectedIndex = settings.CompressionMode.Equals("precise", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+                if (File.Exists(ClearMarker)) DateTimeOffset.TryParseExact(File.ReadAllText(ClearMarker), "O", null, System.Globalization.DateTimeStyles.None, out clearedThrough);
                 RefreshStatus(); timer.Start();
+                _ = CheckUpdatesAsync(false);
                 await PrepareComponentsAsync();
             }
             catch (Exception ex)
@@ -357,6 +387,52 @@ sealed class MainForm : Form
         stop.Enabled = running && !stopping && !startingMonitor;
         foreach (var control in configurationControls) control.Enabled = !running && !exiting;
     }
+    private async Task CheckUpdatesAsync(bool interactive)
+    {
+        if (checkingUpdates) return;
+        checkingUpdates = true;
+        updates.Enabled = false;
+        try
+        {
+            var latest = availableVersion ?? await ReleaseUpdates.LatestAsync();
+            if (IsDisposed || exiting) return;
+            if (latest > ReleaseUpdates.Current)
+            {
+                availableVersion = latest;
+                updates.Text = $"Atualização {latest} disponível";
+                if (interactive && MessageBox.Show(this, $"Versão instalada: {ReleaseUpdates.Current}. Abrir a página da versão {latest} para baixar a atualização?",
+                    "Atualização disponível", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+                    Process.Start(new ProcessStartInfo($"https://github.com/OVinicius1995/Compressor/releases/tag/v{latest}") { UseShellExecute = true });
+            }
+            else if (interactive)
+                VisualTheme.Alert(this, "Aplicativo atualizado", $"Você está usando a versão {ReleaseUpdates.Current}.", applicationIcon);
+        }
+        catch (Exception ex)
+        {
+            if (interactive && !IsDisposed && !exiting) ShowError(ex);
+        }
+        finally
+        {
+            checkingUpdates = false;
+            if (!IsDisposed && !exiting) updates.Enabled = true;
+        }
+    }
+
+    private void ClearCompleted()
+    {
+        var cutoff = grid.Rows.Cast<DataGridViewRow>().Select(row => row.Tag).OfType<JobStatus>()
+            .Where(IsFinished).Select(job => job.UpdatedAt).DefaultIfEmpty(clearedThrough).Max();
+        try
+        {
+            File.WriteAllText(ClearMarker, cutoff.ToString("O"));
+            clearedThrough = cutoff;
+            RefreshStatus();
+        }
+        catch (Exception ex) { ShowError(ex); }
+    }
+
+    private static bool IsFinished(JobStatus job) => job.State is "completed" or "skipped";
+
     private void RefreshStatus()
     {
         if (preparingTools || startingMonitor) return;
@@ -374,8 +450,11 @@ sealed class MainForm : Form
                 }
             }
             if (snapshot is null) { summary.Text = "Aguardando início do monitoramento."; return; }
+            var visibleJobs = snapshot.Jobs.Where(job => !IsFinished(job) || job.UpdatedAt > clearedThrough).ToArray();
+            int ready = visibleJobs.Count(IsFinished);
+            clearCompleted.Enabled = ready > 0 && !preparingTools && !startingMonitor;
             bool running = worker is { IsCompleted: false };
-            summary.Text = $"Aguardando: {snapshot.Waiting}    Comprimindo: {snapshot.Compressing}    Em processamento: {snapshot.Processing}    Prontos: {snapshot.Completed}    Erros: {snapshot.Failed}";
+            summary.Text = $"Aguardando: {snapshot.Waiting}    Comprimindo: {snapshot.Compressing}    Em processamento: {snapshot.Processing}    Prontos: {ready}    Erros: {snapshot.Failed}";
             var active = snapshot.Jobs.FirstOrDefault(j => StatusStore.IsProcessing(j.State));
             activity.Text = running ? active is null ? "Monitorando a pasta de entrada…" : $"{active.FileName} · {active.Percent:F1}% · {active.Message}" : "Monitoramento parado. Histórico da última execução abaixo.";
             progress.Value = running && active is not null ? (int)(active.Percent * 10) : 0;
@@ -384,8 +463,8 @@ sealed class MainForm : Form
             string? selectedFile = grid.CurrentRow?.Cells[0].Value?.ToString();
             int selectedColumn = grid.CurrentCell?.ColumnIndex ?? 0;
             grid.Rows.Clear();
-            foreach (var job in snapshot.Jobs)
-                grid.Rows.Add(job.FileName, StateLabel(job.State), $"{job.Percent:F1}", job.Message);
+            foreach (var job in visibleJobs)
+                grid.Rows[grid.Rows.Add(job.FileName, StateLabel(job.State), $"{job.Percent:F1}", job.Message)].Tag = job;
             if (selectedFile is not null)
                 foreach (DataGridViewRow row in grid.Rows)
                     if (row.Cells[0].Value?.ToString() == selectedFile) { grid.CurrentCell = row.Cells[selectedColumn]; break; }
@@ -413,7 +492,7 @@ sealed class MainForm : Form
     {
         "waiting" => "Aguardando", "hashing" => "Verificando", "analyzing" => "Analisando",
         "compressing" => "Comprimindo", "copying" => "Copiando", "validating" => "Validando",
-        "completed" => "Pronto", "skipped" => "Já pronto", "failed" => "Erro", "canceled" => "Interrompido", "removed" => "Removido", _ => state
+        "cleaned" => "Resultado excluído", "completed" => "Pronto", "skipped" => "Já pronto", "failed" => "Erro", "canceled" => "Interrompido", "removed" => "Removido", _ => state
     };
     private void ShowPanel() { Show(); WindowState = FormWindowState.Normal; Activate(); }
     private void OpenResults()

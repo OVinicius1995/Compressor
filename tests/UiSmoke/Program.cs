@@ -31,6 +31,20 @@ internal static class UiSmoke
                         await Task.Delay(100);
                     }
                     VerifyVisualLayout(form, type, root);
+                    var recycle = form.Controls.Find("cleanupSchedule", true).OfType<Button>().Single();
+                    bool modalChecked = false;
+                    form.BeginInvoke(() =>
+                    {
+                        var dialog = form.OwnedForms.Single();
+                        try
+                        {
+                            var choices = dialog.Controls.OfType<TableLayoutPanel>().Single().Controls.OfType<CheckBox>().ToArray();
+                            modalChecked = choices.Length == 4 && choices.All(box => !box.Checked);
+                        }
+                        finally { dialog.Close(); }
+                    });
+                    recycle.PerformClick();
+                    Assert(modalChecked && !File.Exists(config + ".cleanup.json"), "Opções iniciais ou cancelamento do agendador incorretos.");
                     var theme = assembly.GetType("VisualTheme", throwOnError: true)!;
                     using (var alert = (Form)theme.GetMethod("CreateAlert", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null,
                         ["Preparação incompleta", "Não foi possível preparar os recursos de vídeo.\n\nConfira a conexão com a internet e clique em Tentar preparar novamente. O monitoramento permanece bloqueado até a preparação terminar.", form.Icon])!)
@@ -90,6 +104,10 @@ internal static class UiSmoke
                         form.DrawToBitmap(screenshot, new Rectangle(Point.Empty, screenshot.Size));
                         screenshot.Save(Path.Combine(root, "ui-preview.png"));
                     }
+                    ((Button)Field("clearCompleted")).PerformClick();
+                    Call("RefreshStatus");
+                    Assert(((DataGridView)Field("grid")).Rows.Count == 0 && !((Button)Field("clearCompleted")).Enabled, "Vídeo concluído reapareceu após atualizar o grid.");
+                    Assert(File.Exists(Path.Combine(output, "tela_compressed.mp4")) && File.Exists(Path.Combine(input, "tela.mp4")), "Limpeza afetou os arquivos.");
                     await (Task)Call("StopMonitoring")!;
                     await start;
                     Assert(((TextBox)Field("input")).Enabled, "Parar não liberou as configurações.");

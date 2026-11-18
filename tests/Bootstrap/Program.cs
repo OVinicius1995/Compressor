@@ -10,6 +10,7 @@ internal static class BootstrapChecks
     {
         string root = Path.Combine(Path.GetFullPath(args[0]), ".test-artifacts", "bootstrap-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
+        CleanupChecks.Run(root);
         byte[] archive;
         using (var bytes = new MemoryStream())
         {

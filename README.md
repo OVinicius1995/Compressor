@@ -62,6 +62,18 @@ Baixe ou clone o código. Os recursos são instalados automaticamente em `tools/
 
 Dê dois cliques em **`Iniciar.cmd`**. Ele compila a aplicação em Release e abre o painel.
 
+Ao abrir, o painel consulta a última versão estável no GitHub. Use **Verificar atualizações** para consultar manualmente ou abrir a página de download quando houver uma versão nova. Encerre o aplicativo pela bandeja antes de executar o instalador.
+
+**Limpar concluídos** retira do grid os vídeos prontos e os já processados. A limpeza é lembrada ao reabrir o painel e preserva os vídeos e o histórico em disco. Novas conclusões aparecem normalmente.
+
+### Agendar a exclusão de vídeos
+
+Abra **♻** no canto inferior direito, marque **Ativar exclusão diária**, escolha o horário local e selecione originais, resultados ou ambos. Confira as pastas exibidas e clique em **Salvar**. O Agendador de Tarefas do Windows executa a limpeza com o aplicativo aberto ou fechado, enquanto sua conta estiver conectada. Você pode desativar a tarefa pelo mesmo botão.
+
+A limpeza considera vídeos com processamento concluído e confere seu conteúdo antes de excluir. Os resultados incluem cópias e vídeos compactados. A opção padrão envia os arquivos à Lixeira. Para liberar espaço imediatamente, escolha **Excluir permanentemente** e confirme o aviso. O aplicativo registra a confirmação em `decisoes-de-exclusao.md`, ao lado da configuração. O modal exibe o caminho completo e o resultado da última execução.
+
+Se você conservar o original e excluir o resultado, o monitor respeita essa decisão nas próximas execuções. Use o processamento manual para gerar o resultado novamente.
+
 Ou execute no PowerShell, na pasta do projeto:
 
 ```powershell

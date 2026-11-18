@@ -1,6 +1,12 @@
 # Histórico de alterações
 
-## Em desenvolvimento
+## v0.3.0 — 2026-11-18
+
+- Aviso de atualização pelo painel e acesso à versão estável no GitHub.
+- Limpeza dos vídeos concluídos no grid, preservando os arquivos e o histórico.
+- Agendamento diário de exclusão dos originais, dos resultados ou de ambos, com Lixeira ou exclusão permanente confirmada e registrada.
+
+## v0.2.0
 
 - Instalador Windows x64 por usuário, com runtime, atalhos, desinstalador e preparação validada dos recursos de vídeo durante a instalação.
 - Preferências e histórico separados do programa, preservados em atualizações e desinstalação.

@@ -1,5 +1,5 @@
 param(
-    [string]$Version = '0.2.0',
+    [string]$Version = '0.3.0',
     [string]$PackageDirectory,
     [string]$CompilerPath
 )
@@ -13,12 +13,15 @@ if (!$CompilerPath) {
 }
 if (![IO.File]::Exists($CompilerPath)) { throw 'Instale Inno Setup 6 ou informe -CompilerPath com o caminho do ISCC.exe.' }
 if (!$PackageDirectory) {
-    & (Join-Path $PSScriptRoot 'Build-Portable.ps1')
+    & (Join-Path $PSScriptRoot 'Build-Portable.ps1') -Version $Version
     if ($LASTEXITCODE) { throw 'Falha ao preparar o pacote portatil.' }
     $zip = Get-ChildItem (Join-Path $projectRoot 'artifacts') -Recurse -Filter 'JiraVideoCompressor-windows-x64.zip' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
     $PackageDirectory = Join-Path $zip.DirectoryName 'JiraVideoCompressor-windows-x64'
 }
 $PackageDirectory = [IO.Path]::GetFullPath($PackageDirectory)
+$appAssembly = Join-Path $PackageDirectory 'JiraVideoCompressor.dll'
+$appVersion = [Reflection.AssemblyName]::GetAssemblyName($appAssembly).Version.ToString(3)
+if ($appVersion -ne $Version) { throw "Versao do aplicativo ($appVersion) diferente da versao do instalador ($Version)." }
 $manifest = Get-Content (Join-Path $PackageDirectory 'package-manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 if (!$manifest.selfContained -or $manifest.ffmpegDelivery -ne 'download-on-first-run') {
     throw 'Use o pacote publico autocontido, com preparacao de FFmpeg no destino.'

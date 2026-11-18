@@ -9,7 +9,7 @@ on:
       version:
         description: 'Versão da Release (ex.: v0.1.0)'
         required: true
-        default: v0.2.0
+        default: v0.3.0
 
 permissions:
   contents: write
@@ -36,8 +36,15 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet tests/Bootstrap/bin/Release/net9.0-windows/BootstrapTests.dll $env:GITHUB_WORKSPACE
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Resolve package version
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          $tag = if ($env:REQUESTED_VERSION) { $env:REQUESTED_VERSION } elseif ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME } else { 'v' + ([xml](Get-Content JiraVideoCompressor.csproj -Raw)).Project.PropertyGroup.Version }
+          if ($tag -cnotmatch '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') { throw 'Use vMAJOR.MINOR.PATCH.' }
+          "PACKAGE_VERSION=$($tag.Substring(1))" >> $env:GITHUB_ENV
       - name: Build portable ZIP
-        run: ./scripts/Build-Portable.ps1
+        run: ./scripts/Build-Portable.ps1 -Version $env:PACKAGE_VERSION
       - name: Test portable executable and official FFmpeg download
         run: |
           $zip = Get-ChildItem artifacts -Filter JiraVideoCompressor-windows-x64.zip -Recurse | Sort-Object LastWriteTime -Descending | Select-Object -First 1
@@ -59,7 +66,7 @@ jobs:
           $compiler = "${env:ProgramFiles(x86)}/Inno Setup 6/ISCC.exe"
           choco upgrade innosetup --version=6.7.4 --yes --no-progress --allow-downgrade
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $version = if ($env:REQUESTED_VERSION) { $env:REQUESTED_VERSION.TrimStart('v') } elseif ('${{ github.ref_type }}' -eq 'tag') { '${{ github.ref_name }}'.TrimStart('v') } else { '0.2.0' }
+          $version = $env:PACKAGE_VERSION
           $zip = Get-ChildItem artifacts -Filter JiraVideoCompressor-windows-x64.zip -Recurse | Sort-Object LastWriteTime -Descending | Select-Object -First 1
           ./scripts/Build-Installer.ps1 -Version $version -PackageDirectory (Join-Path $zip.DirectoryName 'JiraVideoCompressor-windows-x64') -CompilerPath $compiler
       - name: Test installation, upgrade and uninstall
@@ -75,13 +82,14 @@ jobs:
             artifacts/**/Compressor-*-Setup-x64.exe
             artifacts/**/Compressor-*-Setup-x64.exe.sha256
       - name: Publish Release
+        if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ github.token }}
           REQUESTED_VERSION: ${{ inputs.version }}
           REF_TYPE: ${{ github.ref_type }}
           REF_NAME: ${{ github.ref_name }}
         run: |
-          $tag = if ($env:REQUESTED_VERSION) { $env:REQUESTED_VERSION } elseif ($env:REF_TYPE -eq 'tag') { $env:REF_NAME } else { 'v0.2.0' }
+          $tag = "v$env:PACKAGE_VERSION"
           if ($tag -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$') { throw 'Versão inválida.' }
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
           if ($LASTEXITCODE -eq 0) { Write-Host 'Versão já publicada; os arquivos existentes foram preservados.'; exit 0 }

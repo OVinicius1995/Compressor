@@ -3,7 +3,8 @@ param(
     [string]$FFmpegDirectory,
     [string]$PublishedAppDirectory,
     [string]$RuntimePackagesDirectory,
-    [string]$RuntimeVersion = '9.0.23'
+    [string]$RuntimeVersion = '9.0.23',
+    [string]$Version = '0.3.0'
 )
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
@@ -25,7 +26,7 @@ $packageName = 'JiraVideoCompressor-windows-x64'
 $destination = Join-Path $buildRoot $packageName
 [IO.Directory]::CreateDirectory($destination) | Out-Null
 if (!$PublishedAppDirectory) {
-    & dotnet publish (Join-Path $projectRoot 'JiraVideoCompressor.csproj') -c Release -r win-x64 --self-contained true "-p:RuntimeFrameworkVersion=$RuntimeVersion" -p:NuGetAudit=false --source https://api.nuget.org/v3/index.json -o $destination
+    & dotnet publish (Join-Path $projectRoot 'JiraVideoCompressor.csproj') -c Release -r win-x64 --self-contained true "-p:Version=$Version" "-p:RuntimeFrameworkVersion=$RuntimeVersion" -p:NuGetAudit=false --source https://api.nuget.org/v3/index.json -o $destination
     if ($LASTEXITCODE -ne 0) { throw 'Falha ao gerar a publicação autocontida.' }
 } else {
     $PublishedAppDirectory = [IO.Path]::GetFullPath($PublishedAppDirectory)

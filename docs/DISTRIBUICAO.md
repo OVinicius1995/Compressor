@@ -16,9 +16,8 @@ Mantenha os arquivos do ZIP juntos e use uma pasta com permissão de escrita. As
 
 O workflow [Build and release Windows](../.github/workflows/release.yml) usa um runner Windows, compila, testa a preparação automática, gera o pacote e testa o executável portátil. Só depois cria a Release e anexa o ZIP e o SHA-256.
 
-- O primeiro envio a `main` prepara `v0.1.0`.
+- Envios a `main` geram artefatos de teste. Para distribuir uma atualização, envie uma tag `vMAJOR.MINOR.PATCH` ou execute o workflow manualmente com essa versão. O ZIP, o executável e o instalador recebem a versão escolhida.
 - Se essa versão já existir, ela é preservada.
-- Para outra versão, envie uma tag `vX.Y.Z` ou execute o workflow manualmente com a versão desejada.
 
 O código e os avisos do aplicativo usam [Apache License 2.0](../LICENSE), com atribuições em [NOTICE](../NOTICE). O modelo de Releases foi inspirado no [projeto de referência](https://github.com/singularidade-digital-dev/singularidade-data-bridge/blob/main/RELEASING.md); não há código de acesso a bancos incorporado.
 

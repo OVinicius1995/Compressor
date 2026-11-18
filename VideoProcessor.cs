@@ -64,16 +64,18 @@ sealed class Settings
     }
 }
 
-sealed record Receipt(string OutputName, string OutputHash, string? PreviousOutputName = null);
+sealed record Receipt(string OutputName, string OutputHash, string? PreviousOutputName = null, bool Cleaned = false);
 
 sealed class VideoProcessor(Settings settings, StatusStore status)
 {
-    public async Task Process(string input, FileStream source, CancellationToken token)
+    internal static string DestinationKey(string directory) => Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(directory.ToUpperInvariant())))[..16];
+
+    public async Task Process(string input, FileStream source, CancellationToken token, bool manual = false)
     {
         source.Position = 0;
         status.Update(input, "hashing", 0, "Verificando conteúdo e duplicatas.");
         string hash = Convert.ToHexString(await SHA256.HashDataAsync(source, token)).ToLowerInvariant();
-        string destinationKey = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(settings.OutputDirectory.ToUpperInvariant())))[..16];
+        string destinationKey = DestinationKey(settings.OutputDirectory);
         string receiptPath = Path.Combine(settings.StateDirectory, hash + "-" + destinationKey + ".json");
         string legacyReceipt = Path.Combine(settings.StateDirectory, hash + ".json");
         string readReceipt = File.Exists(receiptPath) ? receiptPath : legacyReceipt;
@@ -83,44 +85,57 @@ sealed class VideoProcessor(Settings settings, StatusStore status)
         {
             var receipt = JsonSerializer.Deserialize<Receipt>(await File.ReadAllTextAsync(readReceipt, token)) ?? throw new InvalidDataException("Registro inválido.");
             ValidateOutputName(receipt.OutputName);
-            // Retoma uma renomeação interrompida depois de salvar o registro ou mover o arquivo.
-            if (receipt.PreviousOutputName is not null)
+            if (receipt.Cleaned && !manual)
             {
-                ValidateOutputName(receipt.PreviousOutputName);
-                string pendingOutput = Path.Combine(settings.OutputDirectory, receipt.OutputName);
-                string oldOutput = Path.Combine(settings.OutputDirectory, receipt.PreviousOutputName);
-                if (!File.Exists(pendingOutput) && File.Exists(oldOutput))
-                {
-                    await ValidateExisting(oldOutput, receipt.OutputHash, token);
-                    File.Move(oldOutput, pendingOutput);
-                }
-                if (File.Exists(pendingOutput)) await ValidateExisting(pendingOutput, receipt.OutputHash, token);
-                receipt = receipt with { PreviousOutputName = null };
-                await SaveReceipt(receiptPath, receipt, token);
-            }
-            string previous = Path.Combine(settings.OutputDirectory, receipt.OutputName);
-            if (File.Exists(previous))
-            {
-                await ValidateExisting(previous, receipt.OutputHash, token);
-                if (IsLegacyName(receipt.OutputName, hash))
-                {
-                    string friendlyName = AvailableName(input, copy);
-                    var migration = new Receipt(friendlyName, receipt.OutputHash, receipt.OutputName);
-                    // Primeiro registra os dois nomes. Uma queda entre estas etapas é recuperável.
-                    await SaveReceipt(receiptPath, migration, token);
-                    token.ThrowIfCancellationRequested();
-                    string renamed = Path.Combine(settings.OutputDirectory, friendlyName);
-                    File.Move(previous, renamed); // Não sobrescreve em caso de colisão.
-                    await SaveReceipt(receiptPath, migration with { PreviousOutputName = null }, token);
-                    previous = renamed;
-                    receipt = migration with { PreviousOutputName = null };
-                }
-                Console.WriteLine($"Já pronto: {Path.GetFileName(input)} → {receipt.OutputName}");
-                status.Update(input, "skipped", 100, "Conteúdo já processado; nome do resultado conferido.", previous);
+                status.Update(input, "cleaned", 100, "Resultado removido pelo agendador.");
                 return;
             }
-            // Registro antigo sem resultado: gera novamente usando o nome amigável.
-            if (!IsLegacyName(receipt.OutputName, hash)) name = receipt.OutputName;
+            if (receipt.Cleaned)
+            {
+                // O nome antigo pode ter sido reutilizado por outro vídeo.
+                name = AvailableName(input, copy);
+            }
+            else
+            {
+                // Retoma uma renomeação interrompida depois de salvar o registro ou mover o arquivo.
+                if (receipt.PreviousOutputName is not null)
+                {
+                    ValidateOutputName(receipt.PreviousOutputName);
+                    string pendingOutput = Path.Combine(settings.OutputDirectory, receipt.OutputName);
+                    string oldOutput = Path.Combine(settings.OutputDirectory, receipt.PreviousOutputName);
+                    if (!File.Exists(pendingOutput) && File.Exists(oldOutput))
+                    {
+                        await ValidateExisting(oldOutput, receipt.OutputHash, token);
+                        File.Move(oldOutput, pendingOutput);
+                    }
+                    if (File.Exists(pendingOutput)) await ValidateExisting(pendingOutput, receipt.OutputHash, token);
+                    receipt = receipt with { PreviousOutputName = null };
+                    await SaveReceipt(receiptPath, receipt, token);
+                }
+                string previous = Path.Combine(settings.OutputDirectory, receipt.OutputName);
+                if (File.Exists(previous))
+                {
+                    await ValidateExisting(previous, receipt.OutputHash, token);
+                    if (IsLegacyName(receipt.OutputName, hash))
+                    {
+                        string friendlyName = AvailableName(input, copy);
+                        var migration = new Receipt(friendlyName, receipt.OutputHash, receipt.OutputName);
+                        // Primeiro registra os dois nomes. Uma queda entre estas etapas é recuperável.
+                        await SaveReceipt(receiptPath, migration, token);
+                        token.ThrowIfCancellationRequested();
+                        string renamed = Path.Combine(settings.OutputDirectory, friendlyName);
+                        File.Move(previous, renamed); // Não sobrescreve em caso de colisão.
+                        await SaveReceipt(receiptPath, migration with { PreviousOutputName = null }, token);
+                        previous = renamed;
+                        receipt = migration with { PreviousOutputName = null };
+                    }
+                    Console.WriteLine($"Já pronto: {Path.GetFileName(input)} → {receipt.OutputName}");
+                    status.Update(input, "skipped", 100, "Conteúdo já processado; nome do resultado conferido.", previous);
+                    return;
+                }
+                // Registro antigo sem resultado: gera novamente usando o nome amigável.
+                if (!IsLegacyName(receipt.OutputName, hash)) name = receipt.OutputName;
+            }
         }
         if (name.Length == 0) name = AvailableName(input, copy);
         string output = Path.Combine(settings.OutputDirectory, name);
@@ -212,7 +227,7 @@ sealed class VideoProcessor(Settings settings, StatusStore status)
             throw new InvalidDataException("Resultado existente foi alterado. Revise e remova-o para reprocessar.");
     }
 
-    private static async Task SaveReceipt(string path, Receipt receipt, CancellationToken token)
+    internal static async Task SaveReceipt(string path, Receipt receipt, CancellationToken token)
     {
         string temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try

@@ -53,6 +53,9 @@ Name: "{autodesktop}\Jira Video Compressor"; Filename: "{app}\JiraVideoCompresso
 [Run]
 Filename: "{app}\JiraVideoCompressor.exe"; Parameters: "--config ""{localappdata}\JiraVideoCompressor\appsettings.json"""; Description: "Abrir Jira Video Compressor"; Flags: nowait postinstall skipifsilent
 
+[UninstallRun]
+Filename: "{app}\JiraVideoCompressor.exe"; Parameters: "--disable-cleanup --config ""{localappdata}\JiraVideoCompressor\appsettings.json"""; Flags: runhidden waituntilterminated
+
 [Code]
 procedure CurStepChanged(CurStep: TSetupStep);
 var

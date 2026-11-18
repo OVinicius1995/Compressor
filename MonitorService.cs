@@ -63,6 +63,8 @@ sealed class MonitorService(Settings settings, string configPath)
                             pending = true; continue;
                         }
                         if ((DateTime.UtcNow - observation.Since).TotalSeconds < settings.StableSeconds) { pending = true; continue; }
+                        using var processingLock = await CleanupSchedule.LockAsync(settings.StateDirectory, token);
+                        if (!File.Exists(path)) continue;
                         FileStream source;
                         try { source = new(path, FileMode.Open, FileAccess.Read, FileShare.Read); }
                         catch (IOException) { pending = true; continue; }
@@ -70,7 +72,7 @@ sealed class MonitorService(Settings settings, string configPath)
                         {
                             info.Refresh();
                             if ((info.Length, info.LastWriteTimeUtc) != stamp) { observations.Remove(path); pending = true; continue; }
-                            await processor.Process(path, source, token);
+                            await processor.Process(path, source, token, manual is not null);
                         }
                         completed[path] = stamp;
                     }

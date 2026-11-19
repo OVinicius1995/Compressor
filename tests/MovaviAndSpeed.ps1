@@ -9,7 +9,7 @@ $dll=Join-Path $projectRoot "bin/$Configuration/net9.0-windows/JiraVideoCompress
 $root=Join-Path $projectRoot ('.test-artifacts/movavi-speed-'+[Guid]::NewGuid().ToString('N'))
 [IO.Directory]::CreateDirectory($root) | Out-Null
 function Assert($condition,[string]$message) { if (!$condition) { throw $message } }
-function Config([string]$name,[string]$mode='fast',[bool]$ignore=$true,[string]$toolPath=$tools,[int]$attempts=3,[long]$target=9500000,[long]$limit=10000000) {
+function Config([string]$name,[string]$mode='fast',[bool]$ignore=$true,[string]$toolPath=$tools,[int]$attempts=3,[long]$target=19000000,[long]$limit=20000000) {
     $folder=Join-Path $root $name
     [IO.Directory]::CreateDirectory((Join-Path $folder 'Entrada')) | Out-Null
     $value=@{ ToolsDirectory=$toolPath; InputDirectory='Entrada'; OutputDirectory='Saida'; StateDirectory='state'; PollSeconds=0.1; StableSeconds=0.3; IgnoreMkvInMonitor=$ignore; CompressionMode=$mode; MaxCompressionAttempts=$attempts; TargetBytes=$target; LimitBytes=$limit }
@@ -87,7 +87,7 @@ foreach ($mode in @('fast','precise')) {
     Finish (Start-App $case)
     $clock.Stop(); $timings[$mode]=$clock.Elapsed.TotalSeconds
     $output=Join-Path $caseRoot 'Saida/grande_compressed.mp4'
-    Assert ((Get-Item $output).Length -gt 0 -and (Get-Item $output).Length -le 10000000) 'Limite inválido.'
+    Assert ((Get-Item $output).Length -gt 0 -and (Get-Item $output).Length -le 20000000) 'Limite inválido.'
     $events=@(Get-Content (Join-Path $caseRoot 'history.jsonl') | ForEach-Object { $_ | ConvertFrom-Json })
     $encodingStart=$events | Where-Object state -eq compressing | Select-Object -First 1
     $encodingEnd=$events | Where-Object state -eq validating | Select-Object -First 1

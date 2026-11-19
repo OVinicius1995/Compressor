@@ -4,7 +4,7 @@ param(
     [string]$PublishedAppDirectory,
     [string]$RuntimePackagesDirectory,
     [string]$RuntimeVersion = '9.0.23',
-    [string]$Version = '0.3.0'
+    [string]$Version = '0.4.0'
 )
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent

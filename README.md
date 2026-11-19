@@ -21,8 +21,8 @@ Para instalação com atalhos e preparação automática dos recursos, veja o [g
 | Monitoramento | Descobre arquivos novos e os que já estavam na entrada |
 | Espera pela gravação | Confere estabilidade e disponibilidade antes de processar |
 | Fila sequencial | Processa um vídeo por vez, com etapa e percentual |
-| Arquivos pequenos | Copia sem recodificar quando têm até **10.000.000 bytes** |
-| Arquivos maiores | Comprime em MP4/H.264, sem áudio, mirando **9.500.000 bytes**, em modo rápido ou preciso |
+| Arquivos pequenos | Copia sem recodificar quando têm até **20.000.000 bytes** |
+| Arquivos maiores | Comprime em MP4/H.264, sem áudio, mirando **19.000.000 bytes**, em modo rápido ou preciso |
 | Movavi | Ignora o MKV provisório no monitor e aguarda o vídeo exportado |
 | Liberação validada | Confere o limite antes de colocar o resultado na saída |
 | Nomes legíveis | Usa o nome original com `_compressed`, sem sobrescrever outro arquivo |
@@ -31,7 +31,7 @@ Para instalação com atalhos e preparação automática dos recursos, veja o [g
 | Notificações | Avisa qual vídeo foi copiado ou comprimido |
 | Integração futura | Salva fila, progresso e histórico em JSON / JSON Lines |
 
-> O perfil foi pensado para evidências **sem áudio**. O limite de 10.000.000 bytes é a regra deste projeto; confira o limite configurado no Jira da sua organização.
+> O perfil foi pensado para evidências **sem áudio**. O limite de 20.000.000 bytes é a regra deste projeto; confira o limite configurado no Jira da sua organização.
 
 ## Usar o ZIP portátil
 
@@ -68,7 +68,7 @@ Ao abrir, o painel consulta a última versão estável no GitHub. Use **Verifica
 
 ### Agendar a exclusão de vídeos
 
-Abra **♻** no canto inferior direito, marque **Ativar exclusão diária**, escolha o horário local e selecione originais, resultados ou ambos. Confira as pastas exibidas e clique em **Salvar**. O Agendador de Tarefas do Windows executa a limpeza com o aplicativo aberto ou fechado, enquanto sua conta estiver conectada. Você pode desativar a tarefa pelo mesmo botão.
+Abra **♻** no canto inferior direito e marque **Ativar exclusão agendada**. Escolha **Todos os dias** ou **Em uma data específica**. Na segunda opção, selecione o dia no calendário. Defina o horário local, selecione originais, resultados ou ambos e clique em **Salvar**. O Agendador de Tarefas do Windows executa a limpeza mesmo com o aplicativo fechado, enquanto sua conta estiver conectada. A exclusão por data acontece uma única vez e expira ao fim do dia escolhido. Você pode alterar ou desativar o agendamento pelo mesmo botão.
 
 A limpeza considera vídeos com processamento concluído e confere seu conteúdo antes de excluir. Os resultados incluem cópias e vídeos compactados. A opção padrão envia os arquivos à Lixeira. Para liberar espaço imediatamente, escolha **Excluir permanentemente** e confirme o aviso. O aplicativo registra a confirmação em `decisoes-de-exclusao.md`, ao lado da configuração. O modal exibe o caminho completo e o resultado da última execução.
 
@@ -115,7 +115,7 @@ Se você exporta o resultado final em MKV, desmarque a opção ou use o modo man
 - **Rápido (padrão):** uma passagem, preset `veryfast`, com validação do limite ao terminar.
 - **Preciso:** duas passagens, preset `medium`, para priorizar o controle de tamanho e a eficiência de compressão.
 
-As **três tentativas são um teto de recuperação**, não três compressões obrigatórias. Um resultado válido encerra o trabalho na primeira tentativa. Se o modo rápido ultrapassar 10.000.000 bytes, o bitrate é recalculado a partir do tamanho obtido e a recuperação usa duas passagens; nada acima do limite é liberado. `MaxCompressionAttempts` permite reduzir o teto, aceitando que o vídeo seja rejeitado se não couber.
+As **três tentativas são um teto de recuperação**, não três compressões obrigatórias. Um resultado válido encerra o trabalho na primeira tentativa. Se o modo rápido ultrapassar 20.000.000 bytes, o bitrate é recalculado a partir do tamanho obtido e a recuperação usa duas passagens; nada acima do limite é liberado. `MaxCompressionAttempts` permite reduzir o teto, aceitando que o vídeo seja rejeitado se não couber.
 
 O modo rápido pode reduzir a qualidade em relação ao preciso no mesmo orçamento de bytes. O ganho depende do vídeo e do computador. As escolhas do painel ficam salvas no `appsettings.json`; configurações antigas sem os novos campos assumem modo Movavi e perfil rápido.
 
@@ -134,7 +134,7 @@ Os originais não são movidos nem excluídos. Somente resultados com tamanho po
 
 Preserve a pasta **`.state`**: ela guarda os registros de duplicatas. Resultados antigos nomeados por hash são conferidos e migrados para o nome amigável. Não anexe os arquivos internos de `.work`.
 
-O alvo de 9,5 MB não é um tamanho exato: o resultado pode ficar menor. Vídeos muito longos podem precisar ser divididos. Se o gravador fecha e reabre o arquivo durante a captura, prefira gravar fora da entrada e mover o arquivo concluído para ela. Mais detalhes e recuperação de falhas no [guia de uso](docs/USO.md).
+O alvo de 19 MB não é um tamanho exato: o resultado pode ficar menor. Vídeos muito longos podem precisar ser divididos. Se o gravador fecha e reabre o arquivo durante a captura, prefira gravar fora da entrada e mover o arquivo concluído para ela. Mais detalhes e recuperação de falhas no [guia de uso](docs/USO.md).
 
 ## Outros modos de execução
 

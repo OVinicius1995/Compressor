@@ -3,7 +3,12 @@ using System.Security.Principal;
 using System.Text.Json;
 
 internal sealed record CleanupPlan(bool Enabled, TimeOnly Time, bool Originals, bool Results, bool Permanent,
-    string Input, string Output, string State, DateOnly? LastRun = null, string? Outcome = null);
+    string Input, string Output, string State, DateOnly? LastRun = null, string? Outcome = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    DateOnly? OnDate = null)
+{
+    internal string When => OnDate is { } date ? $"em {date:dd/MM/yyyy} às {Time:HH:mm}" : $"todos os dias às {Time:HH:mm}";
+}
 
 internal static class CleanupSchedule
 {
@@ -35,13 +40,15 @@ internal static class CleanupSchedule
         using var edit = new FileStream(PlanPath(config) + ".lock", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
         var previous = Load(config);
         if (plan.Enabled && !plan.Originals && !plan.Results) throw new InvalidDataException("Selecione pelo menos um tipo de vídeo.");
+        if (plan.Enabled && plan.OnDate is { } date && date.ToDateTime(plan.Time) <= DateTime.Now)
+            throw new InvalidDataException("Escolha uma data e um horário futuros para a exclusão.");
         if (!plan.Enabled && previous?.Enabled != true) return;
         // A tarefa lê somente o plano confirmado. Durante a edição, o bloqueio também protege a execução.
         RegisterTask(config, plan);
         try
         {
             if (plan.Enabled && plan.Permanent) RecordDecision(config, plan);
-            Write(config, plan with { LastRun = previous?.LastRun, Outcome = previous?.Outcome });
+            Write(config, plan with { LastRun = plan.OnDate is null ? previous?.LastRun : null, Outcome = previous?.Outcome });
         }
         catch
         {
@@ -56,7 +63,7 @@ internal static class CleanupSchedule
     internal static void RecordDecision(string config, CleanupPlan plan)
     {
         string decision = $"\n## Confirmação em {DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss zzz}\n\n" +
-            $"Usuário: {WindowsIdentity.GetCurrent().Name}\n\nExclusão permanente diária às {plan.Time:HH:mm}. " +
+            $"Usuário: {WindowsIdentity.GetCurrent().Name}\n\nExclusão permanente {plan.When}. " +
             "O usuário confirmou que os arquivos não passarão pela Lixeira e a exclusão não poderá ser desfeita.\n\n" +
             $"- Originais: {(plan.Originals ? plan.Input : "desmarcado")}\n- Resultados: {(plan.Results ? plan.Output : "desmarcado")}\n\n" +
             $"Registro: {DecisionId(plan)}\n";
@@ -82,17 +89,25 @@ internal static class CleanupSchedule
     internal static dynamic CreateTask(dynamic scheduler, string config, CleanupPlan plan)
     {
         dynamic task = scheduler.NewTask(0);
-        task.RegistrationInfo.Description = "Limpeza diária dos vídeos processados pelo Jira Video Compressor.";
+        task.RegistrationInfo.Description = $"Limpeza de vídeos {plan.When}.";
         task.Principal.UserId = WindowsIdentity.GetCurrent().Name;
         task.Principal.LogonType = 3; // InteractiveToken: Lixeira e permissões do próprio usuário.
         task.Settings.StartWhenAvailable = true;
         task.Settings.DisallowStartIfOnBatteries = false;
         task.Settings.StopIfGoingOnBatteries = false;
-        dynamic trigger = task.Triggers.Create(2); // TASK_TRIGGER_DAILY
-        DateTime next = DateTime.Today.Add(plan.Time.ToTimeSpan());
-        if (next <= DateTime.Now) next = next.AddDays(1);
+        dynamic trigger = task.Triggers.Create(plan.OnDate.HasValue ? 1 : 2); // TIME ou DAILY
+        DateTime next = (plan.OnDate ?? DateOnly.FromDateTime(DateTime.Today)).ToDateTime(plan.Time);
+        if (plan.OnDate is null)
+        {
+            trigger.DaysInterval = 1;
+            if (next <= DateTime.Now) next = next.AddDays(1);
+        }
+        else
+        {
+            trigger.EndBoundary = next.Date.AddDays(1).ToString("yyyy-MM-ddTHH:mm:ss", System.Globalization.CultureInfo.InvariantCulture);
+            task.Settings.DeleteExpiredTaskAfter = "PT0S";
+        }
         trigger.StartBoundary = next.ToString("yyyy-MM-ddTHH:mm:ss", System.Globalization.CultureInfo.InvariantCulture);
-        trigger.DaysInterval = 1;
         dynamic action = task.Actions.Create(0);
         action.Path = Path.Combine(AppContext.BaseDirectory, "JiraVideoCompressor.exe");
         action.Arguments = $"--scheduled-cleanup --config \"{config}\"";
@@ -103,8 +118,10 @@ internal static class CleanupSchedule
     {
         using var edit = new FileStream(PlanPath(config) + ".lock", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
         var plan = Load(config);
-        var today = DateOnly.FromDateTime(DateTime.Now);
+        var now = DateTime.Now;
+        var today = DateOnly.FromDateTime(now);
         if (plan is not { Enabled: true } || plan.LastRun == today) return 0;
+        if (plan.OnDate is { } date && (date != today || now < date.ToDateTime(plan.Time))) return 0;
         try
         {
             if (plan.Permanent && (!File.Exists(DecisionPath(config)) || !File.ReadLines(DecisionPath(config)).Contains("Registro: " + DecisionId(plan))))
@@ -113,9 +130,10 @@ internal static class CleanupSchedule
             if (Directory.Exists(plan.State))
             {
                 using var processing = LockAsync(plan.State, CancellationToken.None).GetAwaiter().GetResult();
+                if (plan.OnDate is { } scheduled && scheduled != DateOnly.FromDateTime(DateTime.Now)) return 0;
                 count = Clean(config, plan);
             }
-            Write(config, plan with { LastRun = today, Outcome = $"{today:dd/MM/yyyy}: {count} arquivo(s) excluído(s)." });
+            Write(config, plan with { Enabled = plan.OnDate is null, LastRun = today, Outcome = $"{today:dd/MM/yyyy}: {count} arquivo(s) excluído(s)." });
             return 0;
         }
         catch (Exception ex)

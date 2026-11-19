@@ -13,7 +13,7 @@ $outputDir = Join-Path $testRoot 'Prontos para Jira'
 $stateDir = Join-Path $testRoot 'state'
 [IO.Directory]::CreateDirectory($inputDir) | Out-Null
 $config = Join-Path $testRoot 'appsettings.json'
-@{ ToolsDirectory = $tools; InputDirectory = $inputDir; OutputDirectory = $outputDir; StateDirectory = $stateDir; StableSeconds = 0.5; PollSeconds = 0.1; TargetBytes = 9500000; LimitBytes = 10000000; CompressionMode = 'precise' } | ConvertTo-Json | Set-Content $config -Encoding UTF8
+@{ ToolsDirectory = $tools; InputDirectory = $inputDir; OutputDirectory = $outputDir; StateDirectory = $stateDir; StableSeconds = 0.5; PollSeconds = 0.1; TargetBytes = 19000000; LimitBytes = 20000000; CompressionMode = 'precise' } | ConvertTo-Json | Set-Content $config -Encoding UTF8
 
 function Assert($condition, [string]$message) { if (!$condition) { throw $message } }
 function Start-App([bool]$once = $true) {
@@ -58,7 +58,7 @@ $small = Join-Path $inputDir 'pequeno.mp4'
 Assert ($LASTEXITCODE -eq 0) 'Falha na geração do vídeo pequeno.'
 $boundary = Join-Path $inputDir 'limite.mp4'
 Copy-Item $small $boundary
-Pad-Video $boundary 10000000
+Pad-Video $boundary 20000000
 $large = Join-Path $inputDir 'grande.avi'
 & $ffmpeg -hide_banner -loglevel error -nostdin -y -f lavfi -i 'testsrc2=size=640x360:rate=30' -t 8 -an -c:v rawvideo -pix_fmt yuv420p $large
 Assert ($LASTEXITCODE -eq 0) 'Falha na geração do vídeo grande.'
@@ -68,7 +68,7 @@ Finish-App (Start-App)
 Assert $script:SawCompressionProgress 'Percentual real de compressão não foi observado.'
 Assert ((Results).Count -eq 3) 'Devem existir três resultados.'
 foreach ($file in (Results)) {
-    Assert ($file.Length -gt 0 -and $file.Length -le 10000000) 'Resultado fora do limite.'
+    Assert ($file.Length -gt 0 -and $file.Length -le 20000000) 'Resultado fora do limite.'
     $probe = (& $ffprobe -v error -show_entries stream=codec_type -of json $file.FullName | Out-String) | ConvertFrom-Json
     Assert ($LASTEXITCODE -eq 0) 'FFprobe rejeitou um resultado.'
     Assert (@($probe.streams | Where-Object codec_type -eq audio).Count -eq 0) 'Resultado contém áudio.'
@@ -78,7 +78,7 @@ foreach ($file in (Results)) {
 foreach ($path in $originals.Keys) { Assert ((Get-FileHash $path).Hash -eq $originals[$path]) 'Original alterado.' }
 $smallOutput = Join-Path $outputDir 'pequeno_compressed.mp4'
 Assert ((Get-FileHash $smallOutput).Hash -eq $originals[$small]) 'Cópia deve ser idêntica.'
-Assert ((Get-Item (Join-Path $outputDir 'limite_compressed.mp4')).Length -eq 10000000) 'O limite exato deve ser copiado.'
+Assert ((Get-Item (Join-Path $outputDir 'limite_compressed.mp4')).Length -eq 20000000) 'O limite exato deve ser copiado.'
 Assert (Test-Path (Join-Path $outputDir 'grande_compressed.mp4')) 'Nome amigável não foi aplicado.'
 Copy-Item $small (Join-Path $inputDir 'renomeado.mp4')
 Finish-App (Start-App)
@@ -132,12 +132,12 @@ Assert ([IO.File]::ReadAllText($smallOutput) -eq 'alterado') 'Resultado alterado
 [IO.File]::Delete($smallOutput)
 $overBoundary = Join-Path $inputDir 'um-byte-acima.mp4'
 Copy-Item $small $overBoundary
-Pad-Video $overBoundary 10000001
+Pad-Video $overBoundary 20000001
 Finish-App (Start-App)
 $overOutput = Join-Path $outputDir 'um-byte-acima_compressed.mp4'
 Assert ((Results).Count -eq 6) 'O arquivo um byte acima não foi tratado.'
-Assert ((Get-Item $overOutput).Length -lt 10000000) 'Arquivo acima do limite foi copiado sem comprimir.'
-Assert ((Get-Item $overBoundary).Length -eq 10000001) 'Original acima do limite foi alterado.'
+Assert ((Get-Item $overOutput).Length -lt 20000000) 'Arquivo acima do limite foi copiado sem comprimir.'
+Assert ((Get-Item $overBoundary).Length -eq 20000001) 'Original acima do limite foi alterado.'
 # Nome ocupado por conteúdo diferente recebe sufixo numérico, sem sobrescrever.
 Pad-Video $small 250000
 Finish-App (Start-App)

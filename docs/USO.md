@@ -53,7 +53,7 @@ Em **Compressão**, escolha **Rápido (1 passagem)** ou **Preciso (2 passagens)*
 
 ## Resultados e segurança dos arquivos
 
-Arquivos de até **10.000.000 bytes, inclusive**, são copiados integralmente. Os maiores são comprimidos em MP4/H.264, sem áudio (`-an`), no perfil rápido (uma passagem) ou preciso (duas passagens), mirando **9.500.000 bytes** com margem para o contêiner. Podem ficar menores conforme o conteúdo. O primeiro resultado válido encerra o trabalho. Somente uma saída acima do limite provoca nova tentativa, com bitrate recalculado pelo tamanho medido e duas passagens de recuperação, até MaxCompressionAttempts (padrão: 3). Vídeos longos demais para o mínimo de 50 kb/s são rejeitados e precisam ser divididos.
+Arquivos de até **20.000.000 bytes, inclusive**, são copiados integralmente. Os maiores são comprimidos em MP4/H.264, sem áudio (`-an`), no perfil rápido (uma passagem) ou preciso (duas passagens), mirando **19.000.000 bytes** com margem para o contêiner. Podem ficar menores conforme o conteúdo. O primeiro resultado válido encerra o trabalho. Somente uma saída acima do limite provoca nova tentativa, com bitrate recalculado pelo tamanho medido e duas passagens de recuperação, até MaxCompressionAttempts (padrão: 3). Vídeos longos demais para o mínimo de 50 kb/s são rejeitados e precisam ser divididos.
 
 Antes de liberar, o programa valida tamanho positivo, limite máximo e presença/duração do vídeo com FFprobe. Só então move o resultado completo para a raiz da saída. `.work` contém arquivos internos; nunca os anexe. Após encerramento forçado podem sobrar subpastas ali, removíveis com o programa parado.
 
@@ -72,8 +72,8 @@ Uma falha não impede os outros vídeos. O erro permanece na grade e nos registr
 | `InputDirectory` | Entrada monitorada (`Entrada`) |
 | `OutputDirectory` | Resultados validados (`Prontos para Jira`) |
 | `StateDirectory` | Registros persistentes e bloqueio (`.state`) |
-| `TargetBytes` | Alvo decimal: `9500000` |
-| `LimitBytes` | Máximo permitido: `10000000`; pode ser reduzido |
+| `TargetBytes` | Alvo decimal: `19000000` |
+| `LimitBytes` | Máximo permitido: `20000000`; pode ser reduzido |
 | `PollSeconds` | Intervalo de varredura: `2` |
 | `StableSeconds` | Janela sem mudanças: `10` |
 | `IgnoreMkvInMonitor` | `true`: ignora MKV provisórios do Movavi; manual continua aceitando MKV |

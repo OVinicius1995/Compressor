@@ -2,7 +2,7 @@
   #error PackageDir obrigatorio
 #endif
 #ifndef BuildVersion
-  #define BuildVersion "0.2.0"
+  #define BuildVersion "0.4.0"
 #endif
 #ifndef OutputDir
   #error OutputDir obrigatorio

@@ -5,11 +5,24 @@ using System.Text.Json;
 
 sealed class Settings
 {
+    private const long DefaultTarget = 19_000_000;
+    private const long MaximumSize = 20_000_000;
+
     public static Settings Load(string path)
     {
-        var settings = JsonSerializer.Deserialize<Settings>(File.ReadAllText(path)) ?? throw new InvalidDataException("Configuração vazia.");
-        // Compatibilidade: aproveita a instalação antiga, mas não permite mudar o destino gerenciado.
         using var document = JsonDocument.Parse(File.ReadAllText(path));
+        var settings = document.RootElement.Deserialize<Settings>() ?? throw new InvalidDataException("Configuração vazia.");
+        bool hasTarget = document.RootElement.TryGetProperty(nameof(TargetBytes), out _);
+        if (settings.LimitBytes == 10_000_000 && (!hasTarget || settings.TargetBytes == 9_500_000))
+        {
+            settings.LimitBytes = MaximumSize;
+            settings.TargetBytes = DefaultTarget;
+        }
+        else if (!hasTarget && settings.LimitBytes <= DefaultTarget)
+        {
+            // Mantém o alvo implícito de configurações antigas com limite personalizado.
+            settings.TargetBytes = 9_500_000;
+        }
         if (document.RootElement.TryGetProperty("ToolsDirectory", out var legacy) && legacy.ValueKind == JsonValueKind.String &&
             !string.IsNullOrWhiteSpace(legacy.GetString()))
             settings.LegacyToolsDirectory = Path.GetFullPath(legacy.GetString()!, Path.GetDirectoryName(path)!);
@@ -30,8 +43,8 @@ sealed class Settings
     public string InputDirectory { get; set; } = "Entrada";
     public string OutputDirectory { get; set; } = "Prontos para Jira";
     public string StateDirectory { get; set; } = ".state";
-    public long TargetBytes { get; set; } = 9_500_000;
-    public long LimitBytes { get; set; } = 10_000_000;
+    public long TargetBytes { get; set; } = DefaultTarget;
+    public long LimitBytes { get; set; } = MaximumSize;
     public double PollSeconds { get; set; } = 2;
     public double StableSeconds { get; set; } = 10;
     public bool IgnoreMkvInMonitor { get; set; } = true;
@@ -55,7 +68,7 @@ sealed class Settings
     public void Validate()
     {
         if (!File.Exists(FFmpeg) || !File.Exists(FFprobe)) throw new InvalidDataException("Os recursos de vídeo não estão prontos. Abra o aplicativo e clique em Tentar preparar novamente.");
-        if (TargetBytes <= 0 || TargetBytes >= LimitBytes || LimitBytes > 10_000_000) throw new InvalidDataException("Use 0 < TargetBytes < LimitBytes <= 10000000.");
+        if (TargetBytes <= 0 || TargetBytes >= LimitBytes || LimitBytes > MaximumSize) throw new InvalidDataException($"Use 0 < TargetBytes < LimitBytes <= {MaximumSize}.");
         if (!double.IsFinite(PollSeconds) || !double.IsFinite(StableSeconds) || PollSeconds <= 0 || StableSeconds <= 0) throw new InvalidDataException("Os intervalos devem ser positivos e finitos.");
         if (new[] { InputDirectory, OutputDirectory, StateDirectory }.Distinct(StringComparer.OrdinalIgnoreCase).Count() != 3) throw new InvalidDataException("Entrada, saída e estado devem ser pastas diferentes.");
         if (Extensions.Length == 0 || Extensions.Any(e => !e.StartsWith('.') || e.Contains('/') || e.Contains('\\'))) throw new InvalidDataException("Extensões inválidas.");

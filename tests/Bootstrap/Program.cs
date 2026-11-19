@@ -11,6 +11,11 @@ internal static class BootstrapChecks
         string root = Path.Combine(Path.GetFullPath(args[0]), ".test-artifacts", "bootstrap-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         CleanupChecks.Run(root);
+        string sizeConfig = Path.Combine(root, "size-settings.json");
+        File.WriteAllText(sizeConfig, """{"TargetBytes":9500000,"LimitBytes":10000000}""");
+        Check(Settings.Load(sizeConfig) is { TargetBytes: 19_000_000, LimitBytes: 20_000_000 }, "O limite padrão antigo não foi atualizado.");
+        File.WriteAllText(sizeConfig, """{"TargetBytes":8000000,"LimitBytes":10000000}""");
+        Check(Settings.Load(sizeConfig) is { TargetBytes: 8_000_000, LimitBytes: 10_000_000 }, "Limites personalizados foram alterados.");
         byte[] archive;
         using (var bytes = new MemoryStream())
         {

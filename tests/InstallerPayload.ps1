@@ -54,5 +54,5 @@ $results = @([IO.Directory]::GetFiles((Join-Path $data 'Prontos para Jira')))
 Assert ($results.Count -eq 1) 'Reinicio duplicou resultados.'
 Assert ([IO.Path]::GetFileName($results[0]) -eq 'exemplo_compressed.mp4') 'Nome incorreto.'
 Assert ((Get-FileHash $video).Hash -eq $hash) 'Original alterado.'
-Assert ((Get-Item $results[0]).Length -le 10000000) 'Resultado acima do limite.'
+Assert ((Get-Item $results[0]).Length -le 20000000) 'Resultado acima do limite.'
 Write-Output "PASSOU: integridade do instalador, runtime, ferramentas, copia real, originais e reinicio. Artefatos: $root"

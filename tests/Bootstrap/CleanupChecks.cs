@@ -37,6 +37,18 @@ internal static class CleanupChecks
                 if (task.Triggers.Item(1).DaysInterval != 1 || !((string)task.Triggers.Item(1).StartBoundary).EndsWith("T02:30:00") ||
                     (string)task.Actions.Item(1).Arguments != $"--scheduled-cleanup --config \"{config}\"")
                     throw new Exception("Tarefa diária ou comando agendado inválido.");
+                var tomorrow = DateOnly.FromDateTime(DateTime.Today.AddDays(1));
+                var once = plan with { OnDate = tomorrow };
+                dynamic single = CleanupSchedule.CreateTask(scheduler, config, once);
+                if (single.Triggers.Item(1).Type != 1 || (string)single.Triggers.Item(1).StartBoundary != $"{tomorrow:yyyy-MM-dd}T02:30:00")
+                    throw new Exception("Dia ou horário incorreto para a exclusão única.");
+                foreach (var otherDay in new[] { tomorrow, tomorrow.AddDays(-2) })
+                {
+                    File.WriteAllText(config + ".cleanup.json", JsonSerializer.Serialize(once with { OnDate = otherDay }));
+                    CleanupSchedule.Run(config);
+                    if (!File.Exists(source) || !File.Exists(output)) throw new Exception("Limpeza executada fora do dia escolhido.");
+                }
+                plan = once with { OnDate = DateOnly.FromDateTime(DateTime.Today), Time = TimeOnly.MinValue };
                 var recycle = new RecycleProgress();
                 if (recycle.PreDeleteItem(0, 0) >= 0 || recycle.PreDeleteItem(0x80, 0) < 0)
                     throw new Exception("Modo Lixeira permitiu exclusão definitiva.");
@@ -53,6 +65,8 @@ internal static class CleanupChecks
             CleanupSchedule.Run(config);
             if (File.Exists(source) == plan.Originals || File.Exists(output) == plan.Results || !File.Exists(changed) || !File.Exists(unrelated))
                 throw new Exception("A limpeza não respeitou as categorias ou o conteúdo registrado.");
+            if (plan.OnDate.HasValue && CleanupSchedule.Load(config)!.Enabled)
+                throw new Exception("Agendamento único continuou ativo após a execução.");
             if (plan.Results && !JsonSerializer.Deserialize<Receipt>(File.ReadAllText(receipt))!.Cleaned)
                 throw new Exception("Exclusão do resultado não registrada.");
             if (plan.Results && !plan.Originals)

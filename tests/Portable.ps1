@@ -61,7 +61,7 @@ Assert ($LASTEXITCODE -eq 0) 'FFmpeg incluído não gerou o vídeo de teste.'
 $large=Join-Path $inputDirectory 'maior.mp4'
 [IO.File]::Copy($small,$large)
 $file=[IO.File]::OpenWrite($large)
-try { $file.SetLength(10000001) } finally { $file.Dispose() }
+try { $file.SetLength(20000001) } finally { $file.Dispose() }
 $smallHash=(Get-FileHash $small).Hash
 $largeHash=(Get-FileHash $large).Hash
 
@@ -69,7 +69,7 @@ Run-Portable
 $copied=Join-Path $outputDirectory 'copia_compressed.mp4'
 $compressed=Join-Path $outputDirectory 'maior_compressed.mp4'
 Assert ((Get-FileHash $copied).Hash -eq $smallHash) 'Cópia não é idêntica.'
-Assert ((Get-Item $compressed).Length -gt 0 -and (Get-Item $compressed).Length -le 10000000) 'Compressão fora do limite.'
+Assert ((Get-Item $compressed).Length -gt 0 -and (Get-Item $compressed).Length -le 20000000) 'Compressão fora do limite.'
 Assert ((Get-FileHash $small).Hash -eq $smallHash -and (Get-FileHash $large).Hash -eq $largeHash) 'Original foi alterado.'
 Run-Portable
 Assert (@(Get-ChildItem $outputDirectory -File).Count -eq 2) 'Reinício do pacote gerou duplicatas.'

@@ -1,5 +1,11 @@
 # Histórico de alterações
 
+## v0.4.0 — 2026-11-19
+
+- Cópia integral de vídeos de até 20.000.000 bytes, inclusive. Acima desse limite, a compressão mira 19.000.000 bytes.
+- Migração automática das configurações com o limite e o alvo padrão anteriores.
+- Exclusão agendada para uma data e um horário específicos, com execução única, além da opção diária.
+
 ## v0.3.0 — 2026-11-18
 
 - Aviso de atualização pelo painel e acesso à versão estável no GitHub.

@@ -160,7 +160,7 @@ sealed class MainForm : Form
         grid.AccessibleName = "Fila e histórico dos vídeos";
         monitoring.Controls.Add(grid, 0, 1);
         layout.Controls.Add(monitoring, 0, 9);
-        layout.Controls.Add(new Label { Text = "Vídeos sem áudio · Até 10 MB por arquivo · Um vídeo por vez", ForeColor = VisualTheme.Support, AutoSize = true, Margin = new Padding(0, 16, 0, 0) }, 0, 10);
+        layout.Controls.Add(new Label { Text = "Vídeos sem áudio · Até 20 MB por arquivo · Um vídeo por vez", ForeColor = VisualTheme.Support, AutoSize = true, Margin = new Padding(0, 16, 0, 0) }, 0, 10);
         var footer = new TableLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, ColumnCount = 2, Margin = Padding.Empty };
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));

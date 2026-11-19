@@ -6,7 +6,7 @@ using System.ComponentModel;
 
 sealed class ToolBootstrapper
 {
-    internal const string ReleaseApi = "https://api.github.com/repos/FFmpeg-Builds/FFmpeg-Builds/releases/latest";
+    internal const string ReleaseApi = "https://api.github.com/repos/FFmpeg-Builds/FFmpeg-Builds/releases/tags/latest";
     internal const string AssetName = "ffmpeg-master-latest-win64-gpl.zip";
     public static async Task PrepareAsync(Settings settings, string configPath, IProgress<double>? progress, CancellationToken token)
     {
